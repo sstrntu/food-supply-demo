@@ -1,44 +1,24 @@
 version: '3.8'
 
 services:
-  postgres:
-    image: postgres:15-alpine
-    container_name: food-supply-db
-    environment:
-      POSTGRES_DB: food_supply
-      POSTGRES_USER: postgres
-      POSTGRES_PASSWORD: postgres
-    ports:
-      - "5432:5432"
-    volumes:
-      - postgres_data:/var/lib/postgresql/data
-      - ./database/init.sql:/docker-entrypoint-initdb.d/init.sql
-    healthcheck:
-      test: ["CMD-SHELL", "pg_isready -U postgres"]
-      interval: 5s
-      timeout: 5s
-      retries: 5
-
-  backend:
-    build: ./backend
-    container_name: food-supply-api
+  food-supply-app:
+    build:
+      context: .
+      dockerfile: Dockerfile
     ports:
       - "3001:3001"
     environment:
-      - NODE_ENV=development
+      - NODE_ENV=production
       - PORT=3001
-      - DB_HOST=postgres
-      - DB_PORT=5432
-      - DB_NAME=food_supply
-      - DB_USER=postgres
-      - DB_PASSWORD=postgres
       - JWT_SECRET=your-secret-key-change-in-production
-    depends_on:
-      postgres:
-        condition: service_healthy
     volumes:
-      - ./backend:/app
-      - /app/node_modules
-
-volumes:
-  postgres_data:
+      - ./database:/app/database
+      - ./cert.pem:/app/cert.pem
+      - ./key.pem:/app/key.pem
+    restart: unless-stopped
+    healthcheck:
+      test: ["CMD", "curl", "-f", "http://localhost:3001/health"]
+      interval: 30s
+      timeout: 10s
+      retries: 3
+      start_period: 40s

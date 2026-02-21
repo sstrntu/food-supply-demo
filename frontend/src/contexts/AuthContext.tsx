@@ -53,24 +53,37 @@ export const AuthProvider: React.FC<{ children: ReactNode }> = ({ children }) =>
   }
 
   const login = async (username: string, password: string): Promise<boolean> => {
+    console.log('[AuthContext] Login called with:', { username, passwordLength: password?.length })
+    
     try {
-      const response = await fetch(`${API_URL}/api/auth/login`, {
+      const url = `${API_URL}/api/auth/login`
+      console.log('[AuthContext] Fetching:', url)
+      
+      const response = await fetch(url, {
         method: 'POST',
         headers: {
           'Content-Type': 'application/json'
         },
         body: JSON.stringify({ username, password })
       })
+      
+      console.log('[AuthContext] Response status:', response.status)
+      
       const data = await response.json()
+      console.log('[AuthContext] Response data:', data)
+      
       if (data.success) {
+        console.log('[AuthContext] Login SUCCESS')
         localStorage.setItem('token', data.token)
         setIsAuthenticated(true)
         setUser(data.user)
         return true
       }
+      
+      console.log('[AuthContext] Login FAILED - data.success is:', data.success)
       return false
     } catch (error) {
-      console.error('Login error:', error)
+      console.error('[AuthContext] Login ERROR:', error)
       return false
     }
   }
