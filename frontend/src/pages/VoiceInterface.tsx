@@ -101,6 +101,72 @@ const VoiceInterface: FC = () => {
     }
   }, [])
 
+  // Force widget to top and hide powered by
+  useEffect(() => {
+    const styleWidget = () => {
+      const widgets = document.querySelectorAll('elevenlabs-convai')
+      widgets.forEach((widget) => {
+        // Force widget host to be static
+        ;(widget as HTMLElement).style.position = 'static'
+        ;(widget as HTMLElement).style.display = 'block'
+        
+        const shadowRoot = (widget as any).shadowRoot
+        if (shadowRoot) {
+          // Find and style the floating container
+          const floatingContainer = shadowRoot.querySelector('[class*="floating"]') ||
+                                   shadowRoot.querySelector('.widget-container') ||
+                                   shadowRoot.querySelector('div[style*="fixed"]') ||
+                                   shadowRoot.querySelector('div[style*="bottom"]')
+          
+          if (floatingContainer) {
+            const el = floatingContainer as HTMLElement
+            el.style.position = 'static'
+            el.style.bottom = 'auto'
+            el.style.right = 'auto'
+            el.style.left = 'auto'
+            el.style.top = 'auto'
+            el.style.transform = 'none'
+            el.style.margin = '0 auto'
+            el.style.display = 'flex'
+            el.style.justifyContent = 'center'
+          }
+          
+          // Hide "Powered by" text
+          const poweredBy = shadowRoot.querySelector('[class*="powered"]') ||
+                           shadowRoot.querySelector('a[href*="elevenlabs"]') ||
+                           Array.from(shadowRoot.querySelectorAll('*')).find(el => 
+                             el.textContent?.toLowerCase().includes('powered')
+                           )
+          if (poweredBy) {
+            (poweredBy as HTMLElement).style.display = 'none'
+          }
+          
+          // Style the button to be bigger
+          const button = shadowRoot.querySelector('button') ||
+                        shadowRoot.querySelector('[role="button"]')
+          if (button) {
+            const btn = button as HTMLElement
+            btn.style.width = '120px'
+            btn.style.height = '120px'
+            btn.style.borderRadius = '50%'
+          }
+        }
+      })
+    }
+
+    // Run multiple times to catch widget after it loads
+    styleWidget()
+    setTimeout(styleWidget, 1000)
+    setTimeout(styleWidget, 3000)
+    setTimeout(styleWidget, 5000)
+    
+    // Also run on any DOM changes
+    const observer = new MutationObserver(styleWidget)
+    observer.observe(document.body, { childList: true, subtree: true })
+    
+    return () => observer.disconnect()
+  }, [])
+
   const formatCurrency = (value: number): string => {
     return new Intl.NumberFormat('en-US', {
       style: 'currency',
