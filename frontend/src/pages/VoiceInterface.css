@@ -12,10 +12,9 @@
   flex-direction: column;
   background: #f8fafc;
   font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;
-  padding-bottom: 20px;
 }
 
-/* Mobile Header with Big Voice Button */
+/* Mobile Header */
 .mobile-header {
   background: linear-gradient(135deg, #6366f1 0%, #8b5cf6 100%);
   padding: 16px;
@@ -23,7 +22,7 @@
   display: flex;
   flex-direction: column;
   align-items: center;
-  gap: 16px;
+  gap: 8px;
   box-shadow: 0 4px 20px rgba(99, 102, 241, 0.3);
 }
 
@@ -44,68 +43,20 @@
   margin: 0;
 }
 
-/* HIDDEN WIDGET CONTAINER */
-.hidden-widget {
-  position: fixed;
-  bottom: -1000px;
-  right: -1000px;
-  opacity: 0;
-  pointer-events: none;
-  visibility: hidden;
-}
-
-/* BIG VOICE BUTTON AT TOP */
-.big-voice-btn-top {
+/* VOICE SECTION - ElevenLabs Widget Here */
+.voice-section {
+  background: linear-gradient(135deg, #6366f1 0%, #8b5cf6 100%);
+  padding: 16px 16px 32px;
   display: flex;
-  flex-direction: column;
-  align-items: center;
   justify-content: center;
-  gap: 8px;
-  width: 140px;
-  height: 140px;
-  border-radius: 50%;
-  border: 4px solid rgba(255, 255, 255, 0.3);
-  background: linear-gradient(135deg, #ffffff 0%, #f3f4f6 100%);
-  color: #6366f1;
-  cursor: pointer;
-  box-shadow: 0 8px 30px rgba(0, 0, 0, 0.2);
-  transition: transform 0.2s ease, box-shadow 0.2s ease;
-  animation: pulse-btn 2s ease-in-out infinite;
-  margin: 8px 0;
+  align-items: center;
 }
 
-.big-voice-btn-top:active {
-  transform: scale(0.95);
-}
-
-.big-voice-btn-top span {
-  font-size: 13px;
-  font-weight: 600;
-}
-
-.big-voice-btn-top.active {
-  background: linear-gradient(135deg, #ef4444 0%, #dc2626 100%);
-  color: white;
-  border-color: rgba(255, 255, 255, 0.4);
-  animation: pulse-red 1.5s ease-in-out infinite;
-}
-
-@keyframes pulse-btn {
-  0%, 100% { 
-    box-shadow: 0 8px 30px rgba(0, 0, 0, 0.2), 0 0 0 0 rgba(255, 255, 255, 0.4);
-  }
-  50% { 
-    box-shadow: 0 8px 30px rgba(0, 0, 0, 0.2), 0 0 0 15px rgba(255, 255, 255, 0);
-  }
-}
-
-@keyframes pulse-red {
-  0%, 100% { 
-    box-shadow: 0 8px 30px rgba(220, 38, 38, 0.4), 0 0 0 0 rgba(239, 68, 68, 0.4);
-  }
-  50% { 
-    box-shadow: 0 8px 30px rgba(220, 38, 38, 0.4), 0 0 0 20px rgba(239, 68, 68, 0);
-  }
+/* Force ElevenLabs widget to center and be big */
+.voice-section elevenlabs-convai {
+  display: flex !important;
+  justify-content: center !important;
+  align-items: center !important;
 }
 
 /* Main Content */
@@ -198,7 +149,7 @@
 
 .retry-btn {
   background: #dc2626;
-  color: white;
+  color: #fff;
   border: none;
   padding: 6px 12px;
   border-radius: 6px;
@@ -225,23 +176,6 @@
   display: flex;
   flex-direction: column;
   gap: 8px;
-}
-
-.question-btn {
-  text-align: left;
-  padding: 14px 16px;
-  background: #f8fafc;
-  border: 1px solid #e2e8f0;
-  border-radius: 12px;
-  font-size: 14px;
-  color: #475569;
-  cursor: pointer;
-  transition: all 0.2s ease;
-}
-
-.question-btn:active {
-  background: #f1f5f9;
-  transform: scale(0.98);
 }
 
 .question-hint {
@@ -285,353 +219,8 @@
   line-height: 1.5;
 }
 
-/* Voice Overlay */
-.voice-overlay {
-  position: fixed;
-  top: 0;
-  left: 0;
-  right: 0;
-  bottom: 0;
-  background: rgba(0, 0, 0, 0.9);
-  z-index: 1000;
-  display: flex;
-  align-items: center;
-  justify-content: center;
-  padding: 20px;
-}
-
-.voice-modal {
-  background: linear-gradient(180deg, #1e1b4b 0%, #312e81 100%);
-  border-radius: 24px;
-  width: 100%;
-  max-width: 350px;
-  position: relative;
-  overflow: hidden;
-}
-
-.close-btn {
-  position: absolute;
-  top: 16px;
-  right: 16px;
-  width: 40px;
-  height: 40px;
-  border-radius: 50%;
-  border: none;
-  background: rgba(255, 255, 255, 0.1);
-  color: white;
-  display: flex;
-  align-items: center;
-  justify-content: center;
-  cursor: pointer;
-  z-index: 10;
-}
-
-.voice-content {
-  padding: 60px 24px 40px;
-  display: flex;
-  flex-direction: column;
-  align-items: center;
-  text-align: center;
-}
-
-.mic-visual {
-  position: relative;
-  width: 140px;
-  height: 140px;
-  display: flex;
-  align-items: center;
-  justify-content: center;
-  margin-bottom: 30px;
-}
-
-.mic-circle {
-  width: 100px;
-  height: 100px;
-  border-radius: 50%;
-  background: linear-gradient(135deg, #6366f1 0%, #8b5cf6 100%);
-  display: flex;
-  align-items: center;
-  justify-content: center;
-  color: white;
-  position: relative;
-  z-index: 2;
-  box-shadow: 0 4px 20px rgba(99, 102, 241, 0.5);
-}
-
-.mic-circle.pulsing {
-  animation: pulse 1.5s ease-in-out infinite;
-}
-
-@keyframes pulse {
-  0%, 100% { transform: scale(1); }
-  50% { transform: scale(1.1); }
-}
-
-.wave-ring {
-  position: absolute;
-  border-radius: 50%;
-  border: 2px solid rgba(99, 102, 241, 0.5);
-  animation: expand 2s ease-out infinite;
-}
-
-.ring1 {
-  width: 120px;
-  height: 120px;
-  animation-delay: 0s;
-}
-
-.ring2 {
-  width: 150px;
-  height: 150px;
-  animation-delay: 0.5s;
-}
-
-.ring3 {
-  width: 180px;
-  height: 180px;
-  animation-delay: 1s;
-}
-
-@keyframes expand {
-  0% { transform: scale(1); opacity: 1; }
-  100% { transform: scale(1.5); opacity: 0; }
-}
-
-.voice-status-text {
-  margin-bottom: 30px;
-  min-height: 50px;
-  display: flex;
-  align-items: center;
-  justify-content: center;
-}
-
-.voice-status-text p {
-  margin: 0;
-  font-size: 18px;
-  color: white;
-}
-
-.voice-status-text .listening {
-  color: #a5b4fc;
-}
-
-.voice-status-text .waiting {
-  color: rgba(255, 255, 255, 0.6);
-}
-
-.voice-actions {
-  width: 100%;
-  margin-bottom: 20px;
-}
-
-.voice-action-btn {
-  display: flex;
-  align-items: center;
-  justify-content: center;
-  gap: 8px;
-  width: 100%;
-  padding: 12px;
-  background: rgba(255, 255, 255, 0.1);
-  border: 1px solid rgba(255, 255, 255, 0.2);
-  border-radius: 12px;
-  color: white;
-  font-size: 14px;
-}
-
-.done-btn {
-  padding: 14px 40px;
-  font-size: 16px;
-  font-weight: 600;
-  color: #1e1b4b;
-  background: white;
-  border: none;
-  border-radius: 25px;
-  cursor: pointer;
-}
-
-/* Widget Container */
-.widget-container {
-  position: fixed;
-  bottom: 20px;
-  right: 20px;
-  z-index: 100;
-}
-
-/* Style the ElevenLabs widget */
-.widget-container elevenlabs-convai {
-  --widget-background: linear-gradient(135deg, #6366f1 0%, #8b5cf6 100%);
-  --widget-color: white;
-}
-
-/* Active Call State */
-.big-voice-btn.active {
-  background: linear-gradient(135deg, #ef4444 0%, #dc2626 100%);
-  color: white;
-  border-color: rgba(255, 255, 255, 0.4);
-  animation: pulse-red 1.5s ease-in-out infinite;
-}
-
-@keyframes pulse-red {
-  0%, 100% { 
-    box-shadow: 0 8px 30px rgba(220, 38, 38, 0.4), 0 0 0 0 rgba(239, 68, 68, 0.4);
-  }
-  50% { 
-    box-shadow: 0 8px 30px rgba(220, 38, 38, 0.4), 0 0 0 20px rgba(239, 68, 68, 0);
-  }
-}
-
-/* Call Status Banner */
-.call-status-banner {
-  background: linear-gradient(135deg, #10b981 0%, #059669 100%);
-  color: white;
-  padding: 14px 16px;
-  border-radius: 14px;
-  display: flex;
-  align-items: center;
-  gap: 12px;
-  box-shadow: 0 4px 15px rgba(16, 185, 129, 0.3);
-}
-
-.call-pulse {
-  width: 12px;
-  height: 12px;
-  background: white;
-  border-radius: 50%;
-  animation: blink 1s ease-in-out infinite;
-}
-
-@keyframes blink {
-  0%, 100% { opacity: 1; }
-  50% { opacity: 0.3; }
-}
-
-.call-status-banner span {
-  flex: 1;
-  font-weight: 500;
-  font-size: 15px;
-}
-
-.end-call-btn {
-  display: flex;
-  align-items: center;
-  gap: 6px;
-  padding: 8px 14px;
-  background: rgba(255, 255, 255, 0.2);
-  border: 1px solid rgba(255, 255, 255, 0.3);
-  border-radius: 8px;
-  color: white;
-  font-size: 13px;
-  font-weight: 600;
-  cursor: pointer;
-}
-
-/* Voice Modal */
-.voice-modal-overlay {
-  position: fixed;
-  top: 0;
-  left: 0;
-  right: 0;
-  bottom: 0;
-  background: rgba(0, 0, 0, 0.85);
-  z-index: 1000;
-  display: flex;
-  align-items: center;
-  justify-content: center;
-  padding: 20px;
-  backdrop-filter: blur(10px);
-}
-
-.voice-modal-content {
-  background: linear-gradient(180deg, #1e1b4b 0%, #312e81 100%);
-  border-radius: 24px;
-  width: 100%;
-  max-width: 400px;
-  padding: 24px;
-  position: relative;
-  box-shadow: 0 25px 50px rgba(0, 0, 0, 0.5);
-}
-
-.voice-modal-close {
-  position: absolute;
-  top: 16px;
-  right: 16px;
-  width: 40px;
-  height: 40px;
-  border-radius: 50%;
-  border: none;
-  background: rgba(255, 255, 255, 0.1);
-  color: white;
-  display: flex;
-  align-items: center;
-  justify-content: center;
-  cursor: pointer;
-  z-index: 10;
-  transition: background 0.2s ease;
-}
-
-.voice-modal-close:hover {
-  background: rgba(255, 255, 255, 0.2);
-}
-
-.voice-modal-header {
-  text-align: center;
-  margin-bottom: 24px;
-}
-
-.voice-modal-header h2 {
-  color: white;
-  font-size: 24px;
-  margin-bottom: 8px;
-}
-
-.voice-modal-header p {
-  color: rgba(255, 255, 255, 0.7);
-  font-size: 15px;
-}
-
-.voice-modal-widget {
-  display: flex;
-  justify-content: center;
-  margin-bottom: 24px;
-  min-height: 120px;
-}
-
-.voice-modal-tips {
-  background: rgba(255, 255, 255, 0.1);
-  border-radius: 16px;
-  padding: 16px;
-}
-
-.voice-modal-tips h4 {
-  color: white;
-  font-size: 14px;
-  margin-bottom: 12px;
-  opacity: 0.9;
-}
-
-.voice-modal-tips ul {
-  margin: 0;
-  padding-left: 20px;
-  color: rgba(255, 255, 255, 0.8);
-  font-size: 13px;
-  line-height: 1.8;
-}
-
-.voice-modal-tips li {
-  margin-bottom: 4px;
-}
-
 /* Responsive for larger screens */
 @media (min-width: 640px) {
-  .mobile-header {
-    padding: 20px;
-  }
-  
-  .big-voice-btn {
-    width: 160px;
-    height: 160px;
-  }
-  
   .main-content {
     max-width: 600px;
     margin: 0 auto;
