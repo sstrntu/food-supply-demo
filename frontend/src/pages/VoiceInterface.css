@@ -44,49 +44,17 @@
   margin: 0;
 }
 
-/* ELEVENLABS WIDGET AT TOP */
-.elevenlabs-top {
+/* ELEVENLABS WIDGET CONTAINER - BIG AND CENTERED */
+.elevenlabs-container {
   display: flex;
   justify-content: center;
   align-items: center;
   padding: 8px 0;
 }
 
-/* BIG VOICE BUTTON AT TOP */
-.big-voice-btn {
-  display: flex;
-  flex-direction: column;
-  align-items: center;
-  justify-content: center;
-  gap: 8px;
-  width: 140px;
-  height: 140px;
-  border-radius: 50%;
-  border: 4px solid rgba(255, 255, 255, 0.3);
-  background: linear-gradient(135deg, #ffffff 0%, #f3f4f6 100%);
-  color: #6366f1;
-  cursor: pointer;
-  box-shadow: 0 8px 30px rgba(0, 0, 0, 0.2);
-  transition: transform 0.2s ease, box-shadow 0.2s ease;
-  animation: pulse-btn 2s ease-in-out infinite;
-}
-
-.big-voice-btn:active {
-  transform: scale(0.95);
-}
-
-.big-voice-btn span {
-  font-size: 13px;
-  font-weight: 600;
-}
-
-@keyframes pulse-btn {
-  0%, 100% { 
-    box-shadow: 0 8px 30px rgba(0, 0, 0, 0.2), 0 0 0 0 rgba(255, 255, 255, 0.4);
-  }
-  50% { 
-    box-shadow: 0 8px 30px rgba(0, 0, 0, 0.2), 0 0 0 15px rgba(255, 255, 255, 0);
-  }
+.elevenlabs-container elevenlabs-convai {
+  transform: scale(1.5);
+  transform-origin: center;
 }
 
 /* Main Content */

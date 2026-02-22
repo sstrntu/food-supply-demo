@@ -98,15 +98,6 @@ const VoiceInterface: FC = () => {
 
     document.addEventListener('elevenlabs-convai:call', handleCall)
 
-    // Load script if not already loaded
-    if (!document.getElementById('elevenlabs-convai-script')) {
-      const script = document.createElement('script')
-      script.id = 'elevenlabs-convai-script'
-      script.src = 'https://unpkg.com/@elevenlabs/convai-widget-embed'
-      script.async = true
-      document.body.appendChild(script)
-    }
-
     return () => {
       document.removeEventListener('elevenlabs-convai:call', handleCall)
     }
@@ -122,18 +113,16 @@ const VoiceInterface: FC = () => {
 
   return (
     <div className="voice-app">
-      {/* Mobile Header with ElevenLabs Widget at Top */}
+      {/* Mobile Header with Big ElevenLabs Widget at Top */}
       <header className="mobile-header">
         <div className="header-title">
           <span className="logo">🍜</span>
           <h1>Food Supply AI</h1>
         </div>
         
-        {/* ELEVENLABS WIDGET AT TOP */}
-        <div className="elevenlabs-top">
-          <elevenlabs-convai 
-            agent-id={ELEVENLABS_AGENT_ID}
-          />
+        {/* BIG ELEVENLABS WIDGET AT TOP */}
+        <div className="elevenlabs-container">
+          <elevenlabs-convai agent-id={ELEVENLABS_AGENT_ID}></elevenlabs-convai>
         </div>
       </header>
 
