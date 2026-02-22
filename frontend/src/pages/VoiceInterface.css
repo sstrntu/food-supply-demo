@@ -44,6 +44,14 @@
   margin: 0;
 }
 
+/* ELEVENLABS WIDGET AT TOP */
+.elevenlabs-top {
+  display: flex;
+  justify-content: center;
+  align-items: center;
+  padding: 8px 0;
+}
+
 /* BIG VOICE BUTTON AT TOP */
 .big-voice-btn {
   display: flex;
@@ -215,6 +223,16 @@
 .question-btn:active {
   background: #f1f5f9;
   transform: scale(0.98);
+}
+
+.question-hint {
+  text-align: left;
+  padding: 14px 16px;
+  background: #f8fafc;
+  border: 1px solid #e2e8f0;
+  border-radius: 12px;
+  font-size: 14px;
+  color: #475569;
 }
 
 /* Instructions */

@@ -1,5 +1,5 @@
 import { FC, useEffect, useState, useCallback } from 'react'
-import { Package, AlertTriangle, TrendingUp, Mic, X } from 'lucide-react'
+import { Package, AlertTriangle, TrendingUp } from 'lucide-react'
 import './VoiceInterface.css'
 
 interface DashboardStats {
@@ -19,7 +19,6 @@ const VoiceInterface: FC = () => {
   })
   const [loading, setLoading] = useState(true)
   const [error, setError] = useState('')
-  const [showVoiceModal, setShowVoiceModal] = useState(false)
 
   const fetchStats = useCallback(async () => {
     try {
@@ -121,23 +120,21 @@ const VoiceInterface: FC = () => {
     }).format(value || 0)
   }
 
-  const openVoiceModal = () => setShowVoiceModal(true)
-  const closeVoiceModal = () => setShowVoiceModal(false)
-
   return (
     <div className="voice-app">
-      {/* Mobile Header with Big Voice Button */}
+      {/* Mobile Header with ElevenLabs Widget at Top */}
       <header className="mobile-header">
         <div className="header-title">
           <span className="logo">🍜</span>
           <h1>Food Supply AI</h1>
         </div>
         
-        {/* BIG VOICE BUTTON - Opens Voice Modal */}
-        <button className="big-voice-btn" onClick={openVoiceModal}>
-          <Mic size={32} />
-          <span>Tap to Ask</span>
-        </button>
+        {/* ELEVENLABS WIDGET AT TOP */}
+        <div className="elevenlabs-top">
+          <elevenlabs-convai 
+            agent-id={ELEVENLABS_AGENT_ID}
+          />
+        </div>
       </header>
 
       {/* Main Content */}
@@ -186,18 +183,18 @@ const VoiceInterface: FC = () => {
         <section className="quick-questions">
           <h3>Try Asking</h3>
           <div className="question-list">
-            <button className="question-btn" onClick={openVoiceModal}>
+            <div className="question-hint">
               🍚 "How much rice do we have?"
-            </button>
-            <button className="question-btn" onClick={openVoiceModal}>
+            </div>
+            <div className="question-hint">
               ⚠️ "What's low on stock?"
-            </button>
-            <button className="question-btn" onClick={openVoiceModal}>
+            </div>
+            <div className="question-hint">
               🍜 "Show me all sauces"
-            </button>
-            <button className="question-btn" onClick={openVoiceModal}>
+            </div>
+            <div className="question-hint">
               💰 "What's our inventory value?"
-            </button>
+            </div>
           </div>
         </section>
 
@@ -205,7 +202,7 @@ const VoiceInterface: FC = () => {
         <section className="instructions">
           <div className="instruction-item">
             <span className="icon">🎙️</span>
-            <p>Tap the big button above to talk with the AI</p>
+            <p>Tap the voice button above to talk with the AI</p>
           </div>
           <div className="instruction-item">
             <span className="icon">📱</span>
@@ -213,40 +210,6 @@ const VoiceInterface: FC = () => {
           </div>
         </section>
       </main>
-
-      {/* Voice Modal with ElevenLabs Widget */}
-      {showVoiceModal && (
-        <div className="voice-modal-overlay" onClick={(e) => {
-          if (e.target === e.currentTarget) closeVoiceModal()
-        }}>
-          <div className="voice-modal-content">
-            <button className="voice-modal-close" onClick={closeVoiceModal}>
-              <X size={24} />
-            </button>
-            
-            <div className="voice-modal-header">
-              <h2>🎙️ Voice Assistant</h2>
-              <p>Tap the microphone and speak your question</p>
-            </div>
-
-            <div className="voice-modal-widget">
-              <elevenlabs-convai 
-                agent-id={ELEVENLABS_AGENT_ID}
-              />
-            </div>
-
-            <div className="voice-modal-tips">
-              <h4>Try saying:</h4>
-              <ul>
-                <li>"How many rice products do we have?"</li>
-                <li>"What's low on stock?"</li>
-                <li>"Show me all sauces"</li>
-                <li>"What's our total inventory value?"</li>
-              </ul>
-            </div>
-          </div>
-        </div>
-      )}
     </div>
   )
 }
