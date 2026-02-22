@@ -1,5 +1,5 @@
-import { FC, useEffect, useState, useCallback } from 'react'
-import { Package, AlertTriangle, TrendingUp, Mic, Loader2, X, Volume2 } from 'lucide-react'
+import { FC, useEffect, useState, useCallback, useRef } from 'react'
+import { Package, AlertTriangle, TrendingUp, Mic, X } from 'lucide-react'
 import './VoiceInterface.css'
 
 interface DashboardStats {
@@ -11,6 +11,12 @@ interface DashboardStats {
 const API_URL = 'https://139.59.102.60:3001'
 const ELEVENLABS_AGENT_ID = 'agent_7901khz299zdfvcbhtk3c08vcps8'
 
+declare global {
+  interface Window {
+    elevenlabs: any;
+  }
+}
+
 const VoiceInterface: FC = () => {
   const [stats, setStats] = useState<DashboardStats>({ 
     totalProducts: 0, 
@@ -19,9 +25,8 @@ const VoiceInterface: FC = () => {
   })
   const [loading, setLoading] = useState(true)
   const [error, setError] = useState('')
-  const [showVoiceMode, setShowVoiceMode] = useState(false)
-  const [isListening, setIsListening] = useState(false)
-  const [transcript, setTranscript] = useState('')
+  const [isCallActive, setIsCallActive] = useState(false)
+  const widgetRef = useRef<HTMLElement | null>(null)
 
   const fetchStats = useCallback(async () => {
     try {
@@ -95,18 +100,35 @@ const VoiceInterface: FC = () => {
       event.detail.config.clientTools = actions
     }
 
-    document.addEventListener('elevenlabs-convai:call', handleCall)
+    // Listen for call start/end events
+    const handleCallStart = () => setIsCallActive(true)
+    const handleCallEnd = () => setIsCallActive(false)
 
+    document.addEventListener('elevenlabs-convai:call', handleCall)
+    document.addEventListener('elevenlabs-convai:call-start', handleCallStart)
+    document.addEventListener('elevenlabs-convai:call-end', handleCallEnd)
+
+    // Load script if not already loaded
     if (!document.getElementById('elevenlabs-convai-script')) {
       const script = document.createElement('script')
       script.id = 'elevenlabs-convai-script'
       script.src = 'https://unpkg.com/@elevenlabs/convai-widget-embed'
       script.async = true
+      script.onload = () => {
+        console.log('ElevenLabs widget loaded')
+      }
       document.body.appendChild(script)
     }
 
+    // Find widget reference after a delay
+    setTimeout(() => {
+      widgetRef.current = document.querySelector('elevenlabs-convai')
+    }, 1000)
+
     return () => {
       document.removeEventListener('elevenlabs-convai:call', handleCall)
+      document.removeEventListener('elevenlabs-convai:call-start', handleCallStart)
+      document.removeEventListener('elevenlabs-convai:call-end', handleCallEnd)
     }
   }, [])
 
@@ -118,16 +140,58 @@ const VoiceInterface: FC = () => {
     }).format(value || 0)
   }
 
-  const startVoiceMode = () => {
-    setShowVoiceMode(true)
-    setTranscript('')
-    setIsListening(false)
+  // Start ElevenLabs voice call
+  const startElevenLabsCall = () => {
+    // Try to find and click the ElevenLabs widget button
+    const widget = document.querySelector('elevenlabs-convai') as any
+    if (widget) {
+      // Method 1: Try to trigger via widget API
+      if (widget.startConversation) {
+        widget.startConversation()
+      } else if (widget.click) {
+        widget.click()
+      } else {
+        // Method 2: Find the button inside shadow DOM
+        const shadowRoot = widget.shadowRoot
+        if (shadowRoot) {
+          const button = shadowRoot.querySelector('button') || shadowRoot.querySelector('[role="button"]')
+          if (button) {
+            (button as HTMLElement).click()
+          }
+        }
+      }
+    }
+    
+    // Method 3: Dispatch custom event that ElevenLabs listens for
+    const startEvent = new CustomEvent('elevenlabs-convai:start-call')
+    document.dispatchEvent(startEvent)
+    
+    setIsCallActive(true)
   }
 
-  const closeVoiceMode = () => {
-    setShowVoiceMode(false)
-    setIsListening(false)
-    setTranscript('')
+  // End ElevenLabs voice call
+  const endElevenLabsCall = () => {
+    const widget = document.querySelector('elevenlabs-convai') as any
+    if (widget) {
+      if (widget.endConversation) {
+        widget.endConversation()
+      } else {
+        const shadowRoot = widget.shadowRoot
+        if (shadowRoot) {
+          const endButton = shadowRoot.querySelector('.end-call-button') || 
+                           shadowRoot.querySelector('[data-action="end"]') ||
+                           shadowRoot.querySelector('button:last-child')
+          if (endButton) {
+            (endButton as HTMLElement).click()
+          }
+        }
+      }
+    }
+    
+    const endEvent = new CustomEvent('elevenlabs-convai:end-call')
+    document.dispatchEvent(endEvent)
+    
+    setIsCallActive(false)
   }
 
   return (
@@ -139,10 +203,13 @@ const VoiceInterface: FC = () => {
           <h1>Food Supply AI</h1>
         </div>
         
-        {/* BIG VOICE BUTTON AT TOP */}
-        <button className="big-voice-btn" onClick={startVoiceMode}>
+        {/* BIG VOICE BUTTON - Triggers ElevenLabs */}
+        <button 
+          className={`big-voice-btn ${isCallActive ? 'active' : ''}`} 
+          onClick={isCallActive ? endElevenLabsCall : startElevenLabsCall}
+        >
           <Mic size={32} />
-          <span>Tap to Ask</span>
+          <span>{isCallActive ? 'Tap to End' : 'Tap to Ask'}</span>
         </button>
       </header>
 
@@ -188,18 +255,33 @@ const VoiceInterface: FC = () => {
           </div>
         )}
 
+        {/* Active Call Status */}
+        {isCallActive && (
+          <div className="call-status-banner">
+            <div className="call-pulse" />
+            <span>🎙️ Voice AI Active - Speak now</span>
+            <button className="end-call-btn" onClick={endElevenLabsCall}>
+              <X size={16} />
+              End
+            </button>
+          </div>
+        )}
+
         {/* Quick Questions */}
         <section className="quick-questions">
-          <h3>Quick Questions</h3>
+          <h3>Try Asking</h3>
           <div className="question-list">
-            <button className="question-btn" onClick={startVoiceMode}>
+            <button className="question-btn" onClick={startElevenLabsCall}>
               🍚 "How much rice do we have?"
             </button>
-            <button className="question-btn" onClick={startVoiceMode}>
+            <button className="question-btn" onClick={startElevenLabsCall}>
               ⚠️ "What's low on stock?"
             </button>
-            <button className="question-btn" onClick={startVoiceMode}>
+            <button className="question-btn" onClick={startElevenLabsCall}>
               🍜 "Show me all sauces"
+            </button>
+            <button className="question-btn" onClick={startElevenLabsCall}>
+              💰 "What's our inventory value?"
             </button>
           </div>
         </section>
@@ -208,64 +290,17 @@ const VoiceInterface: FC = () => {
         <section className="instructions">
           <div className="instruction-item">
             <span className="icon">🎙️</span>
-            <p>Tap the big purple button above to ask about inventory</p>
+            <p>Tap the big button above to talk with the AI</p>
           </div>
           <div className="instruction-item">
             <span className="icon">📱</span>
-            <p>Works great on mobile - use it on the go!</p>
+            <p>Works on mobile - use it on the go!</p>
           </div>
         </section>
       </main>
 
-      {/* Voice Mode Overlay */}
-      {showVoiceMode && (
-        <div className="voice-overlay" onClick={(e) => e.stopPropagation()}>
-          <div className="voice-modal">
-            <button className="close-btn" onClick={closeVoiceMode}>
-              <X size={24} />
-            </button>
-
-            <div className="voice-content">
-              <div className="mic-visual">
-                <div className={`mic-circle ${isListening ? 'pulsing' : ''}`}>
-                  <Mic size={40} />
-                </div>
-                {isListening && (
-                  <>
-                    <div className="wave-ring ring1" />
-                    <div className="wave-ring ring2" />
-                    <div className="wave-ring ring3" />
-                  </>
-                )}
-              </div>
-
-              <div className="voice-status-text">
-                {transcript ? (
-                  <p className="transcript">"{transcript}"</p>
-                ) : isListening ? (
-                  <p className="listening">Listening...</p>
-                ) : (
-                  <p className="waiting">Tap to speak</p>
-                )}
-              </div>
-
-              <div className="voice-actions">
-                <button className="voice-action-btn">
-                  <Volume2 size={20} />
-                  AI will respond with voice
-                </button>
-              </div>
-
-              <button className="done-btn" onClick={closeVoiceMode}>
-                Done
-              </button>
-            </div>
-          </div>
-        </div>
-      )}
-
-      {/* ElevenLabs Widget Container */}
-      <div className="widget-container">
+      {/* Hidden ElevenLabs Widget */}
+      <div className="widget-container" style={{ position: 'fixed', bottom: '-100px', right: '-100px', opacity: 0, pointerEvents: 'none' }}>
         <elevenlabs-convai 
           agent-id={ELEVENLABS_AGENT_ID}
           className="elevenlabs-widget"
