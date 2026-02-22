@@ -1,24 +1,24 @@
 version: '3.8'
 
 services:
-  food-supply-app:
+  backend:
     build:
       context: .
-      dockerfile: Dockerfile
+      dockerfile: Dockerfile.simple
     ports:
       - "3001:3001"
-    environment:
-      - NODE_ENV=production
-      - PORT=3001
-      - JWT_SECRET=your-secret-key-change-in-production
     volumes:
       - ./database:/app/database
-      - ./cert.pem:/app/cert.pem
-      - ./key.pem:/app/key.pem
     restart: unless-stopped
-    healthcheck:
-      test: ["CMD", "curl", "-f", "http://localhost:3001/health"]
-      interval: 30s
-      timeout: 10s
-      retries: 3
-      start_period: 40s
+    environment:
+      - NODE_ENV=production
+
+  frontend:
+    build:
+      context: ./frontend/dist
+      dockerfile: ../../Dockerfile.frontend
+    ports:
+      - "8443:8443"
+    restart: unless-stopped
+    depends_on:
+      - backend
