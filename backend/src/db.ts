@@ -1,13 +1,44 @@
 import sqlite3 from 'sqlite3';
 import { open, Database } from 'sqlite';
 import path from 'path';
+import fs from 'fs';
 
 let db: Database<sqlite3.Database, sqlite3.Statement> | null = null;
 
+// Check multiple paths for Docker compatibility
+function getDbPath(): string {
+  const paths = [
+    path.join(__dirname, '../../database/food_supply.db'),  // Development
+    '/app/database/food_supply.db',                         // Docker
+    path.join(process.cwd(), 'database/food_supply.db')     // Fallback
+  ];
+  
+  for (const p of paths) {
+    const dir = path.dirname(p);
+    if (fs.existsSync(dir)) {
+      console.log('Using database path:', p);
+      return p;
+    }
+  }
+  
+  // Default to Docker path if none found
+  console.log('Using default database path:', paths[1]);
+  return paths[1];
+}
+
 export async function getDb() {
   if (!db) {
+    const dbPath = getDbPath();
+    const dbDir = path.dirname(dbPath);
+    
+    // Create directory if it doesn't exist
+    if (!fs.existsSync(dbDir)) {
+      console.log('Creating database directory:', dbDir);
+      fs.mkdirSync(dbDir, { recursive: true });
+    }
+    
     db = await open({
-      filename: path.join(__dirname, '../../database/food_supply.db'),
+      filename: dbPath,
       driver: sqlite3.Database
     });
   }

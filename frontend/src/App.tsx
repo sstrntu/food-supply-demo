@@ -4,6 +4,7 @@ import { AuthProvider, useAuth } from './contexts/AuthContext'
 import Login from './pages/Login'
 import Dashboard from './pages/Dashboard'
 import VoiceInterface from './pages/VoiceInterface'
+import TestLogin from './pages/TestLogin'
 import Layout from './components/Layout'
 import './App.css'
 
@@ -17,6 +18,7 @@ function App() {
     <AuthProvider>
       <Routes>
         <Route path="/login" element={<Login />} />
+        <Route path="/test" element={<TestLogin />} />
         <Route
           path="/"
           element={

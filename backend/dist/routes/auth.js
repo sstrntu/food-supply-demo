@@ -16,7 +16,13 @@ const TEST_USER = {
 };
 router.post('/login', (req, res) => {
     const { username, password } = req.body;
+    console.log('[BACKEND] Login request received');
+    console.log('[BACKEND] Request body:', req.body);
+    console.log('[BACKEND] Username:', username);
+    console.log('[BACKEND] Password provided:', !!password);
+    console.log('[BACKEND] Content-Type:', req.headers['content-type']);
     if (username === TEST_USER.username && password === TEST_USER.password) {
+        console.log('[BACKEND] Credentials MATCH - Login SUCCESS');
         const token = jsonwebtoken_1.default.sign({ username, role: 'admin' }, JWT_SECRET, { expiresIn: '24h' });
         res.json({
             success: true,
@@ -28,6 +34,9 @@ router.post('/login', (req, res) => {
         });
     }
     else {
+        console.log('[BACKEND] Credentials MISMATCH - Login FAILED');
+        console.log('[BACKEND] Expected:', TEST_USER.username, TEST_USER.password);
+        console.log('[BACKEND] Received:', username, password);
         res.status(401).json({
             success: false,
             message: 'Invalid credentials'

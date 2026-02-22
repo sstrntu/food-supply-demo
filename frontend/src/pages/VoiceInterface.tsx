@@ -1,5 +1,5 @@
 import { FC, useEffect, useState, useCallback } from 'react'
-import { Package, AlertTriangle, TrendingUp, Mic, Loader2 } from 'lucide-react'
+import { Package, AlertTriangle, TrendingUp, Mic, Loader2, X, Volume2 } from 'lucide-react'
 import './VoiceInterface.css'
 
 interface DashboardStats {
@@ -8,88 +8,8 @@ interface DashboardStats {
   lowStockCount: number
 }
 
-interface ApiError {
-  message: string
-  code?: string
-}
-
 const API_URL = 'https://139.59.102.60:3001'
 const ELEVENLABS_AGENT_ID = 'agent_7901khz299zdfvcbhtk3c08vcps8'
-
-// Voice Actions for ElevenLabs
-const createVoiceActions = () => {
-  const fetchWithAuth = async (endpoint: string) => {
-    const token = localStorage.getItem('token')
-    if (!token) throw new Error('Not authenticated')
-    
-    const res = await fetch(`${API_URL}${endpoint}`, {
-      headers: { 'Authorization': `Bearer ${token}` }
-    })
-    
-    if (!res.ok) {
-      throw new Error(`API error: ${res.status}`)
-    }
-    return res.json()
-  }
-
-  return {
-    get_inventory_summary: async () => {
-      try {
-        const data = await fetchWithAuth('/api/dashboard/stats')
-        return `You have ${data.totalProducts} products with a total inventory value of $${Math.round(data.totalInventoryValue).toLocaleString()}. There are ${data.lowStockCount} items low on stock.`
-      } catch (e) {
-        return 'Sorry, I could not fetch the inventory summary. Please try again.'
-      }
-    },
-    get_low_stock: async () => {
-      try {
-        const items = await fetchWithAuth('/api/inventory/low-stock')
-        if (!items?.length) return 'All items are well stocked!'
-        const itemList = items.slice(0, 5).map((i: any) => `${i.product_name} (${i.quantity_on_hand} units)`).join(', ')
-        const moreText = items.length > 5 ? ` and ${items.length - 5} more` : ''
-        return `Low stock alert: ${itemList}${moreText}. Consider reordering soon.`
-      } catch (e) {
-        return 'Sorry, I could not fetch low stock items. Please try again.'
-      }
-    },
-    check_product_stock: async (params: { product_name: string }) => {
-      try {
-        if (!params?.product_name) return 'Please specify a product name.'
-        const products = await fetchWithAuth(`/api/products?search=${encodeURIComponent(params.product_name)}`)
-        if (!products?.length) return `I could not find any product matching "${params.product_name}".`
-        const p = products[0]
-        const lowStockWarning = p.quantity_on_hand <= p.reorder_point ? ' This item is low on stock!' : ''
-        return `${p.name} has ${p.quantity_on_hand} units in stock at ${p.warehouse_name}.${lowStockWarning}`
-      } catch (e) {
-        return 'Sorry, I could not check that product. Please try again.'
-      }
-    },
-    get_products_by_category: async (params: { category: string }) => {
-      try {
-        if (!params?.category) return 'Please specify a category like rice, sauces, noodles, etc.'
-        const products = await fetchWithAuth(`/api/products/category/${encodeURIComponent(params.category)}`)
-        if (!products?.length) return `No products found in category "${params.category}".`
-        const productList = products.slice(0, 5).map((p: any) => `${p.name} (${p.quantity_on_hand} in stock)`).join(', ')
-        const moreText = products.length > 5 ? ` and ${products.length - 5} more` : ''
-        return `Found ${products.length} products in ${params.category}: ${productList}${moreText}.`
-      } catch (e) {
-        return 'Sorry, I could not fetch products by category. Please try again.'
-      }
-    },
-    search_products: async (params: { query: string }) => {
-      try {
-        if (!params?.query) return 'Please specify what you want to search for.'
-        const products = await fetchWithAuth(`/api/products?search=${encodeURIComponent(params.query)}`)
-        if (!products?.length) return `No products found matching "${params.query}".`
-        const productList = products.slice(0, 5).map((p: any) => p.name).join(', ')
-        const moreText = products.length > 5 ? ` and ${products.length - 5} more` : ''
-        return `Found ${products.length} products: ${productList}${moreText}.`
-      } catch (e) {
-        return 'Sorry, I could not search products. Please try again.'
-      }
-    }
-  }
-}
 
 const VoiceInterface: FC = () => {
   const [stats, setStats] = useState<DashboardStats>({ 
@@ -98,35 +18,24 @@ const VoiceInterface: FC = () => {
     lowStockCount: 0 
   })
   const [loading, setLoading] = useState(true)
-  const [error, setError] = useState<ApiError | null>(null)
-  const [widgetLoaded, setWidgetLoaded] = useState(false)
+  const [error, setError] = useState('')
+  const [showVoiceMode, setShowVoiceMode] = useState(false)
+  const [isListening, setIsListening] = useState(false)
+  const [transcript, setTranscript] = useState('')
 
   const fetchStats = useCallback(async () => {
     try {
       setLoading(true)
-      setError(null)
-      
       const token = localStorage.getItem('token')
-      if (!token) {
-        setError({ message: 'Please log in to view dashboard' })
-        return
-      }
-      
       const res = await fetch(`${API_URL}/api/dashboard/stats`, {
         headers: { 'Authorization': `Bearer ${token}` }
       })
-      
-      if (!res.ok) {
-        throw new Error(`Failed to load: ${res.status}`)
+      if (res.ok) {
+        const data = await res.json()
+        setStats(data)
       }
-      
-      const data = await res.json()
-      setStats(data)
     } catch (e) {
-      console.error('Error fetching stats:', e)
-      setError({ 
-        message: e instanceof Error ? e.message : 'Failed to load dashboard data'
-      })
+      console.error(e)
     } finally {
       setLoading(false)
     }
@@ -139,30 +48,61 @@ const VoiceInterface: FC = () => {
   // Load ElevenLabs ConvAI Widget
   useEffect(() => {
     const handleCall = (event: any) => {
-      const actions = createVoiceActions()
-      
-      event.detail.config.clientTools = {
-        get_inventory_summary: actions.get_inventory_summary,
-        get_low_stock: actions.get_low_stock,
-        check_product_stock: actions.check_product_stock,
-        get_products_by_category: actions.get_products_by_category,
-        search_products: actions.search_products,
+      const actions = {
+        get_inventory_summary: async () => {
+          try {
+            const token = localStorage.getItem('token')
+            const res = await fetch(`${API_URL}/api/dashboard/stats`, {
+              headers: { 'Authorization': `Bearer ${token}` }
+            })
+            const data = await res.json()
+            return `You have ${data.totalProducts} products with a total inventory value of $${Math.round(data.totalInventoryValue).toLocaleString()}. There are ${data.lowStockCount} items low on stock.`
+          } catch (e) {
+            return 'Sorry, I could not fetch the inventory summary.'
+          }
+        },
+        get_low_stock: async () => {
+          try {
+            const token = localStorage.getItem('token')
+            const res = await fetch(`${API_URL}/api/inventory/low-stock`, {
+              headers: { 'Authorization': `Bearer ${token}` }
+            })
+            const items = await res.json()
+            if (!items?.length) return 'All items are well stocked!'
+            const itemList = items.slice(0, 3).map((i: any) => `${i.product_name} (${i.quantity_on_hand} units)`).join(', ')
+            return `Low stock: ${itemList}${items.length > 3 ? ` and ${items.length - 3} more` : ''}.`
+          } catch (e) {
+            return 'Sorry, I could not fetch low stock items.'
+          }
+        },
+        check_product_stock: async (params: { product_name: string }) => {
+          try {
+            if (!params?.product_name) return 'Please specify a product name.'
+            const token = localStorage.getItem('token')
+            const res = await fetch(`${API_URL}/api/products?search=${encodeURIComponent(params.product_name)}`, {
+              headers: { 'Authorization': `Bearer ${token}` }
+            })
+            const products = await res.json()
+            if (!products?.length) return `No product found matching "${params.product_name}".`
+            const p = products[0]
+            return `${p.name} has ${p.quantity_on_hand} units in stock.`
+          } catch (e) {
+            return 'Sorry, could not check that product.'
+          }
+        }
       }
+      
+      event.detail.config.clientTools = actions
     }
 
     document.addEventListener('elevenlabs-convai:call', handleCall)
 
-    // Load ElevenLabs script
     if (!document.getElementById('elevenlabs-convai-script')) {
       const script = document.createElement('script')
       script.id = 'elevenlabs-convai-script'
       script.src = 'https://unpkg.com/@elevenlabs/convai-widget-embed'
       script.async = true
-      script.onload = () => setWidgetLoaded(true)
-      script.onerror = () => console.error('Failed to load ElevenLabs widget')
       document.body.appendChild(script)
-    } else {
-      setWidgetLoaded(true)
     }
 
     return () => {
@@ -178,108 +118,154 @@ const VoiceInterface: FC = () => {
     }).format(value || 0)
   }
 
-  const sampleQuestions = [
-    'How much jasmine rice do we have?',
-    "What's low on stock?",
-    'Show me all sauces',
-    'Search for noodles'
-  ]
+  const startVoiceMode = () => {
+    setShowVoiceMode(true)
+    setTranscript('')
+    setIsListening(false)
+  }
+
+  const closeVoiceMode = () => {
+    setShowVoiceMode(false)
+    setIsListening(false)
+    setTranscript('')
+  }
 
   return (
     <div className="voice-app">
-      <header className="app-header">
+      {/* Mobile Header with Big Voice Button */}
+      <header className="mobile-header">
         <div className="header-title">
-          <span className="logo" aria-label="Food">🍜</span>
+          <span className="logo">🍜</span>
           <h1>Food Supply AI</h1>
         </div>
-        <div className="connection-status online">
-          <span className="status-dot" aria-hidden="true" />
-          <span>Online</span>
-        </div>
+        
+        {/* BIG VOICE BUTTON AT TOP */}
+        <button className="big-voice-btn" onClick={startVoiceMode}>
+          <Mic size={32} />
+          <span>Tap to Ask</span>
+        </button>
       </header>
 
+      {/* Main Content */}
       <main className="main-content">
-        {/* Stats Grid */}
-        <section className="stats-grid" aria-label="Dashboard statistics">
+        {/* Quick Stats - Mobile Cards */}
+        <section className="stats-section">
           <div className="stat-card">
-            <div className="stat-icon-wrapper blue">
-              <Package size={24} aria-hidden="true" />
+            <div className="stat-icon blue">
+              <Package size={20} />
             </div>
             <div className="stat-info">
-              <span className="stat-value">
-                {loading ? <Loader2 className="spinner" size={20} /> : stats.totalProducts}
-              </span>
+              <span className="stat-value">{loading ? '...' : stats.totalProducts}</span>
               <span className="stat-label">Products</span>
             </div>
           </div>
           
           <div className="stat-card">
-            <div className="stat-icon-wrapper green">
-              <TrendingUp size={24} aria-hidden="true" />
+            <div className="stat-icon green">
+              <TrendingUp size={20} />
             </div>
             <div className="stat-info">
-              <span className="stat-value">
-                {loading ? <Loader2 className="spinner" size={20} /> : formatCurrency(stats.totalInventoryValue)}
-              </span>
-              <span className="stat-label">Inventory Value</span>
+              <span className="stat-value">{loading ? '...' : formatCurrency(stats.totalInventoryValue)}</span>
+              <span className="stat-label">Value</span>
             </div>
           </div>
           
           <div className="stat-card">
-            <div className="stat-icon-wrapper orange">
-              <AlertTriangle size={24} aria-hidden="true" />
+            <div className="stat-icon orange">
+              <AlertTriangle size={20} />
             </div>
             <div className="stat-info">
-              <span className="stat-value">
-                {loading ? <Loader2 className="spinner" size={20} /> : stats.lowStockCount}
-              </span>
+              <span className="stat-value">{loading ? '...' : stats.lowStockCount}</span>
               <span className="stat-label">Low Stock</span>
             </div>
           </div>
         </section>
 
         {error && (
-          <div className="error-banner" role="alert">
-            <span>{error.message}</span>
+          <div className="error-banner">
+            <span>{error}</span>
             <button onClick={fetchStats} className="retry-btn">Retry</button>
           </div>
         )}
 
-        {/* Voice Assistant CTA */}
-        <section className="voice-cta" aria-label="Voice assistant">
-          <div className="voice-cta-content">
-            <div className="voice-cta-icon">
-              <Mic size={32} aria-hidden="true" />
-            </div>
-            <h2>Ask About Your Inventory</h2>
-            <p>Tap the microphone button to ask questions about stock levels, products, or orders.</p>
+        {/* Quick Questions */}
+        <section className="quick-questions">
+          <h3>Quick Questions</h3>
+          <div className="question-list">
+            <button className="question-btn" onClick={startVoiceMode}>
+              🍚 "How much rice do we have?"
+            </button>
+            <button className="question-btn" onClick={startVoiceMode}>
+              ⚠️ "What's low on stock?"
+            </button>
+            <button className="question-btn" onClick={startVoiceMode}>
+              🍜 "Show me all sauces"
+            </button>
           </div>
         </section>
 
-        {/* Sample Questions */}
-        <section className="sample-questions" aria-label="Sample questions">
-          <h3>Try asking:</h3>
-          <div className="question-chips">
-            {sampleQuestions.map((q, i) => (
-              <button 
-                key={i} 
-                className="question-chip"
-                onClick={() => {/* Could trigger voice with this question */}}
-              >
-                "{q}"
-              </button>
-            ))}
+        {/* Instructions */}
+        <section className="instructions">
+          <div className="instruction-item">
+            <span className="icon">🎙️</span>
+            <p>Tap the big purple button above to ask about inventory</p>
+          </div>
+          <div className="instruction-item">
+            <span className="icon">📱</span>
+            <p>Works great on mobile - use it on the go!</p>
           </div>
         </section>
       </main>
 
-      {/* ElevenLabs Widget */}
-      <div className="widget-container" aria-label="Voice assistant widget">
-        {!widgetLoaded && (
-          <div className="widget-loading">
-            <Loader2 className="spinner" size={20} />
+      {/* Voice Mode Overlay */}
+      {showVoiceMode && (
+        <div className="voice-overlay" onClick={(e) => e.stopPropagation()}>
+          <div className="voice-modal">
+            <button className="close-btn" onClick={closeVoiceMode}>
+              <X size={24} />
+            </button>
+
+            <div className="voice-content">
+              <div className="mic-visual">
+                <div className={`mic-circle ${isListening ? 'pulsing' : ''}`}>
+                  <Mic size={40} />
+                </div>
+                {isListening && (
+                  <>
+                    <div className="wave-ring ring1" />
+                    <div className="wave-ring ring2" />
+                    <div className="wave-ring ring3" />
+                  </>
+                )}
+              </div>
+
+              <div className="voice-status-text">
+                {transcript ? (
+                  <p className="transcript">"{transcript}"</p>
+                ) : isListening ? (
+                  <p className="listening">Listening...</p>
+                ) : (
+                  <p className="waiting">Tap to speak</p>
+                )}
+              </div>
+
+              <div className="voice-actions">
+                <button className="voice-action-btn">
+                  <Volume2 size={20} />
+                  AI will respond with voice
+                </button>
+              </div>
+
+              <button className="done-btn" onClick={closeVoiceMode}>
+                Done
+              </button>
+            </div>
           </div>
-        )}
+        </div>
+      )}
+
+      {/* ElevenLabs Widget Container */}
+      <div className="widget-container">
         <elevenlabs-convai 
           agent-id={ELEVENLABS_AGENT_ID}
           className="elevenlabs-widget"

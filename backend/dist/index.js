@@ -5,7 +5,6 @@ var __importDefault = (this && this.__importDefault) || function (mod) {
 Object.defineProperty(exports, "__esModule", { value: true });
 const https_1 = __importDefault(require("https"));
 const fs_1 = __importDefault(require("fs"));
-const path_1 = __importDefault(require("path"));
 const express_1 = __importDefault(require("express"));
 const cors_1 = __importDefault(require("cors"));
 const dotenv_1 = __importDefault(require("dotenv"));
@@ -23,14 +22,14 @@ const app = (0, express_1.default)();
 const PORT = process.env.PORT || 3001;
 // Middleware
 app.use((0, cors_1.default)({
-    origin: ['https://139.59.102.60:5443', 'http://139.59.102.60:5173', '*'],
+    origin: ['https://139.59.102.60:8443', 'https://139.59.102.60:5443', 'http://139.59.102.60:5173', '*'],
     credentials: true
 }));
 app.use(express_1.default.json());
-// SSL certificates
+// SSL certificates - Docker paths
 const sslOptions = {
-    key: fs_1.default.readFileSync(path_1.default.join(__dirname, '../../key.pem')),
-    cert: fs_1.default.readFileSync(path_1.default.join(__dirname, '../../cert.pem'))
+    key: fs_1.default.readFileSync('/app/key.pem'),
+    cert: fs_1.default.readFileSync('/app/cert.pem')
 };
 // Initialize database on startup
 async function startServer() {

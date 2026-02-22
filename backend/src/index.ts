@@ -21,15 +21,15 @@ const PORT = process.env.PORT || 3001;
 
 // Middleware
 app.use(cors({
-  origin: ['https://139.59.102.60:5443', 'http://139.59.102.60:5173', '*'],
+  origin: ['https://139.59.102.60:8443', 'https://139.59.102.60:5443', 'http://139.59.102.60:5173', '*'],
   credentials: true
 }));
 app.use(express.json());
 
-// SSL certificates
+// SSL certificates - Docker paths
 const sslOptions = {
-  key: fs.readFileSync(path.join(__dirname, '../../key.pem')),
-  cert: fs.readFileSync(path.join(__dirname, '../../cert.pem'))
+    key: fs.readFileSync('/app/key.pem'),
+    cert: fs.readFileSync('/app/cert.pem')
 };
 
 // Initialize database on startup

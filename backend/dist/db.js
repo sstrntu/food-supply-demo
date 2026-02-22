@@ -8,11 +8,37 @@ exports.initDb = initDb;
 const sqlite3_1 = __importDefault(require("sqlite3"));
 const sqlite_1 = require("sqlite");
 const path_1 = __importDefault(require("path"));
+const fs_1 = __importDefault(require("fs"));
 let db = null;
+// Check multiple paths for Docker compatibility
+function getDbPath() {
+    const paths = [
+        path_1.default.join(__dirname, '../../database/food_supply.db'), // Development
+        '/app/database/food_supply.db', // Docker
+        path_1.default.join(process.cwd(), 'database/food_supply.db') // Fallback
+    ];
+    for (const p of paths) {
+        const dir = path_1.default.dirname(p);
+        if (fs_1.default.existsSync(dir)) {
+            console.log('Using database path:', p);
+            return p;
+        }
+    }
+    // Default to Docker path if none found
+    console.log('Using default database path:', paths[1]);
+    return paths[1];
+}
 async function getDb() {
     if (!db) {
+        const dbPath = getDbPath();
+        const dbDir = path_1.default.dirname(dbPath);
+        // Create directory if it doesn't exist
+        if (!fs_1.default.existsSync(dbDir)) {
+            console.log('Creating database directory:', dbDir);
+            fs_1.default.mkdirSync(dbDir, { recursive: true });
+        }
         db = await (0, sqlite_1.open)({
-            filename: path_1.default.join(__dirname, '../../database/food_supply.db'),
+            filename: dbPath,
             driver: sqlite3_1.default.Database
         });
     }
