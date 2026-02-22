@@ -43,7 +43,7 @@ router.post('/login', (req, res) => {
         });
     }
 });
-router.post('/verify', (req, res) => {
+router.get('/verify', (req, res) => {
     const authHeader = req.headers.authorization;
     if (!authHeader || !authHeader.startsWith('Bearer ')) {
         return res.status(401).json({ valid: false, message: 'No token provided' });

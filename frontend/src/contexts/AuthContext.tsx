@@ -15,7 +15,7 @@ interface AuthContextType {
 
 const AuthContext = createContext<AuthContextType | undefined>(undefined)
 
-const API_URL = import.meta.env.VITE_API_URL || 'https://139.59.102.60:3001'
+const API_URL = ''  // Empty = use relative URLs, proxy handles /api
 
 export const AuthProvider: React.FC<{ children: ReactNode }> = ({ children }) => {
   const [isAuthenticated, setIsAuthenticated] = useState(false)

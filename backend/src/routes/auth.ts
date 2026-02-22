@@ -49,7 +49,7 @@ router.post('/login', (req, res) => {
   }
 });
 
-router.post('/verify', (req, res) => {
+router.get('/verify', (req, res) => {
   const authHeader = req.headers.authorization;
   
   if (!authHeader || !authHeader.startsWith('Bearer ')) {
