@@ -420,6 +420,12 @@
   z-index: 100;
 }
 
+/* Style the ElevenLabs widget */
+.widget-container elevenlabs-convai {
+  --widget-background: linear-gradient(135deg, #6366f1 0%, #8b5cf6 100%);
+  --widget-color: white;
+}
+
 /* Active Call State */
 .big-voice-btn.active {
   background: linear-gradient(135deg, #ef4444 0%, #dc2626 100%);
@@ -480,6 +486,102 @@
   font-size: 13px;
   font-weight: 600;
   cursor: pointer;
+}
+
+/* Voice Modal */
+.voice-modal-overlay {
+  position: fixed;
+  top: 0;
+  left: 0;
+  right: 0;
+  bottom: 0;
+  background: rgba(0, 0, 0, 0.85);
+  z-index: 1000;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  padding: 20px;
+  backdrop-filter: blur(10px);
+}
+
+.voice-modal-content {
+  background: linear-gradient(180deg, #1e1b4b 0%, #312e81 100%);
+  border-radius: 24px;
+  width: 100%;
+  max-width: 400px;
+  padding: 24px;
+  position: relative;
+  box-shadow: 0 25px 50px rgba(0, 0, 0, 0.5);
+}
+
+.voice-modal-close {
+  position: absolute;
+  top: 16px;
+  right: 16px;
+  width: 40px;
+  height: 40px;
+  border-radius: 50%;
+  border: none;
+  background: rgba(255, 255, 255, 0.1);
+  color: white;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  cursor: pointer;
+  z-index: 10;
+  transition: background 0.2s ease;
+}
+
+.voice-modal-close:hover {
+  background: rgba(255, 255, 255, 0.2);
+}
+
+.voice-modal-header {
+  text-align: center;
+  margin-bottom: 24px;
+}
+
+.voice-modal-header h2 {
+  color: white;
+  font-size: 24px;
+  margin-bottom: 8px;
+}
+
+.voice-modal-header p {
+  color: rgba(255, 255, 255, 0.7);
+  font-size: 15px;
+}
+
+.voice-modal-widget {
+  display: flex;
+  justify-content: center;
+  margin-bottom: 24px;
+  min-height: 120px;
+}
+
+.voice-modal-tips {
+  background: rgba(255, 255, 255, 0.1);
+  border-radius: 16px;
+  padding: 16px;
+}
+
+.voice-modal-tips h4 {
+  color: white;
+  font-size: 14px;
+  margin-bottom: 12px;
+  opacity: 0.9;
+}
+
+.voice-modal-tips ul {
+  margin: 0;
+  padding-left: 20px;
+  color: rgba(255, 255, 255, 0.8);
+  font-size: 13px;
+  line-height: 1.8;
+}
+
+.voice-modal-tips li {
+  margin-bottom: 4px;
 }
 
 /* Responsive for larger screens */
