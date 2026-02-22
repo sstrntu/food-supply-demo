@@ -1,5 +1,5 @@
-import { FC, useEffect, useState, useCallback } from 'react'
-import { Package, AlertTriangle, TrendingUp } from 'lucide-react'
+import { FC, useEffect, useState, useCallback, useRef } from 'react'
+import { Package, AlertTriangle, TrendingUp, Mic, PhoneOff } from 'lucide-react'
 import './VoiceInterface.css'
 
 interface DashboardStats {
@@ -19,6 +19,8 @@ const VoiceInterface: FC = () => {
   })
   const [loading, setLoading] = useState(true)
   const [error, setError] = useState('')
+  const [isCallActive, setIsCallActive] = useState(false)
+  const widgetRef = useRef<HTMLDivElement>(null)
 
   const fetchStats = useCallback(async () => {
     try {
@@ -42,7 +44,7 @@ const VoiceInterface: FC = () => {
     fetchStats()
   }, [fetchStats])
 
-  // Setup ElevenLabs client tools
+  // Setup ElevenLabs client tools and widget
   useEffect(() => {
     const handleCall = (event: any) => {
       console.log('ElevenLabs call started, setting up tools...')
@@ -96,11 +98,47 @@ const VoiceInterface: FC = () => {
       }
     }
 
+    const handleCallStart = () => setIsCallActive(true)
+    const handleCallEnd = () => setIsCallActive(false)
+
     document.addEventListener('elevenlabs-convai:call', handleCall)
+    document.addEventListener('elevenlabs-convai:call-start', handleCallStart)
+    document.addEventListener('elevenlabs-convai:call-end', handleCallEnd)
 
     return () => {
       document.removeEventListener('elevenlabs-convai:call', handleCall)
+      document.removeEventListener('elevenlabs-convai:call-start', handleCallStart)
+      document.removeEventListener('elevenlabs-convai:call-end', handleCallEnd)
     }
+  }, [])
+
+  // Force widget to be inline by modifying its shadow DOM
+  useEffect(() => {
+    const fixWidgetPosition = () => {
+      const widgets = document.querySelectorAll('elevenlabs-convai')
+      widgets.forEach((widget) => {
+        const shadowRoot = (widget as any).shadowRoot
+        if (shadowRoot) {
+          // Find the floating container and make it static
+          const floatingContainer = shadowRoot.querySelector('.floating-container, [class*="floating"]')
+          if (floatingContainer) {
+            (floatingContainer as HTMLElement).style.position = 'static'
+            ;(floatingContainer as HTMLElement).style.bottom = 'auto'
+            ;(floatingContainer as HTMLElement).style.right = 'auto'
+          }
+          
+          // Find the button container
+          const buttonContainer = shadowRoot.querySelector('.widget-container, [class*="widget"]')
+          if (buttonContainer) {
+            (buttonContainer as HTMLElement).style.position = 'static'
+          }
+        }
+      })
+    }
+
+    // Run after widget loads
+    setTimeout(fixWidgetPosition, 2000)
+    setTimeout(fixWidgetPosition, 5000)
   }, [])
 
   const formatCurrency = (value: number): string => {
@@ -111,19 +149,51 @@ const VoiceInterface: FC = () => {
     }).format(value || 0)
   }
 
+  // Trigger ElevenLabs widget
+  const toggleElevenLabs = () => {
+    const widget = document.querySelector('elevenlabs-convai') as any
+    if (!widget) return
+
+    const shadowRoot = widget.shadowRoot
+    if (!shadowRoot) return
+
+    if (isCallActive) {
+      // End call
+      const endBtn = shadowRoot.querySelector('button[aria-label*="end"], .end-call, [data-action="end"]') ||
+                    Array.from(shadowRoot.querySelectorAll('button')).find(b => 
+                      b.innerHTML.includes('phone') || b.textContent?.toLowerCase().includes('end')
+                    )
+      if (endBtn) (endBtn as HTMLElement).click()
+      setIsCallActive(false)
+    } else {
+      // Start call
+      const startBtn = shadowRoot.querySelector('button[aria-label*="start"], .start-call, [data-action="start"]') ||
+                      Array.from(shadowRoot.querySelectorAll('button')).find(b => 
+                        b.innerHTML.includes('mic') || b.textContent?.toLowerCase().includes('start')
+                      ) ||
+                      shadowRoot.querySelector('button')
+      if (startBtn) (startBtn as HTMLElement).click()
+      setIsCallActive(true)
+    }
+  }
+
   return (
     <div className="voice-app">
-      {/* Mobile Header with Big ElevenLabs Widget at Top */}
+      {/* Mobile Header with Big Voice Button at Top */}
       <header className="mobile-header">
         <div className="header-title">
           <span className="logo">🍜</span>
           <h1>Food Supply AI</h1>
         </div>
         
-        {/* BIG ELEVENLABS WIDGET AT TOP */}
-        <div className="elevenlabs-container">
-          <elevenlabs-convai agent-id={ELEVENLABS_AGENT_ID}></elevenlabs-convai>
-        </div>
+        {/* BIG CUSTOM VOICE BUTTON AT TOP */}
+        <button 
+          className={`big-voice-btn-top ${isCallActive ? 'active' : ''}`} 
+          onClick={toggleElevenLabs}
+        >
+          {isCallActive ? <PhoneOff size={40} /> : <Mic size={40} />}
+          <span>{isCallActive ? 'End Call' : 'Tap to Ask'}</span>
+        </button>
       </header>
 
       {/* Main Content */}
@@ -168,6 +238,14 @@ const VoiceInterface: FC = () => {
           </div>
         )}
 
+        {/* Active Call Status */}
+        {isCallActive && (
+          <div className="call-status-banner">
+            <div className="call-pulse" />
+            <span>🎙️ Voice AI Active - Speak now</span>
+          </div>
+        )}
+
         {/* Quick Questions */}
         <section className="quick-questions">
           <h3>Try Asking</h3>
@@ -191,7 +269,7 @@ const VoiceInterface: FC = () => {
         <section className="instructions">
           <div className="instruction-item">
             <span className="icon">🎙️</span>
-            <p>Tap the voice button above to talk with the AI</p>
+            <p>Tap the big button above to talk with the AI</p>
           </div>
           <div className="instruction-item">
             <span className="icon">📱</span>
@@ -199,6 +277,11 @@ const VoiceInterface: FC = () => {
           </div>
         </section>
       </main>
+
+      {/* Hidden ElevenLabs Widget */}
+      <div ref={widgetRef} className="hidden-widget">
+        <elevenlabs-convai agent-id={ELEVENLABS_AGENT_ID}></elevenlabs-convai>
+      </div>
     </div>
   )
 }
