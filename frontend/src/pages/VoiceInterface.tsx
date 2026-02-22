@@ -8,7 +8,7 @@ interface DashboardStats {
   lowStockCount: number
 }
 
-const API_URL = 'https://139.59.102.60:3001'
+const API_URL = ''  // Empty = same origin, proxy handles /api
 const ELEVENLABS_AGENT_ID = 'agent_7901khz299zdfvcbhtk3c08vcps8'
 
 const VoiceInterface: FC = () => {
