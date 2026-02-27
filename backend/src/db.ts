@@ -2,38 +2,21 @@ import sqlite3 from 'sqlite3';
 import { open, Database } from 'sqlite';
 import path from 'path';
 import fs from 'fs';
+import { resolveDbPath } from './config';
 
 let db: Database<sqlite3.Database, sqlite3.Statement> | null = null;
 
-// Check multiple paths for Docker compatibility
-function getDbPath(): string {
-  const paths = [
-    path.join(__dirname, '../../database/food_supply.db'),  // Development
-    '/app/database/food_supply.db',                         // Docker
-    path.join(process.cwd(), 'database/food_supply.db')     // Fallback
-  ];
-  
-  for (const p of paths) {
-    const dir = path.dirname(p);
-    if (fs.existsSync(dir)) {
-      console.log('Using database path:', p);
-      return p;
-    }
-  }
-  
-  // Default to Docker path if none found
-  console.log('Using default database path:', paths[1]);
-  return paths[1];
+export function getDbPath(): string {
+  return resolveDbPath();
 }
 
-export async function getDb() {
+export async function getDb(): Promise<Database<sqlite3.Database, sqlite3.Statement>> {
   if (!db) {
     const dbPath = getDbPath();
     const dbDir = path.dirname(dbPath);
     
     // Create directory if it doesn't exist
     if (!fs.existsSync(dbDir)) {
-      console.log('Creating database directory:', dbDir);
       fs.mkdirSync(dbDir, { recursive: true });
     }
     
@@ -45,10 +28,16 @@ export async function getDb() {
   return db;
 }
 
-export async function initDb() {
+export async function closeDb(): Promise<void> {
+  if (db) {
+    await db.close();
+    db = null;
+  }
+}
+
+export async function initDb(): Promise<Database<sqlite3.Database, sqlite3.Statement>> {
   const database = await getDb();
   
-  // Create tables
   await database.exec(`
     -- Drop existing tables
     DROP TABLE IF EXISTS order_items;
@@ -123,18 +112,13 @@ export async function initDb() {
     CREATE INDEX idx_orders_created ON orders(created_at);
   `);
   
-  console.log('Database initialized successfully');
-  
-  // Seed with sample data
-  await seedData(database);
-  
   return database;
 }
 
-async function seedData(db: Database) {
+export async function seedData(database: Database): Promise<void> {
   // Insert warehouses
-  await db.run(`INSERT INTO warehouses (name, location) VALUES (?, ?)`, ['Main Warehouse', 'Singapore']);
-  await db.run(`INSERT INTO warehouses (name, location) VALUES (?, ?)`, ['Cold Storage', 'Singapore']);
+  await database.run(`INSERT INTO warehouses (name, location) VALUES (?, ?)`, ['Main Warehouse', 'Singapore']);
+  await database.run(`INSERT INTO warehouses (name, location) VALUES (?, ?)`, ['Cold Storage', 'Singapore']);
   
   const warehouseId = 1;
   const coldStorageId = 2;
@@ -186,7 +170,7 @@ async function seedData(db: Database) {
   ];
   
   for (const p of products) {
-    const result = await db.run(
+    const result = await database.run(
       `INSERT INTO products (name, category, sku, unit_price, supplier, description) VALUES (?, ?, ?, ?, ?, ?)`,
       [p.name, p.category, p.sku, p.price, 'Asian Foods Co', `${p.name} - Premium Quality`]
     );
@@ -194,11 +178,9 @@ async function seedData(db: Database) {
     const productId = result.lastID;
     const warehouse = p.category === 'Frozen' ? coldStorageId : warehouseId;
     
-    await db.run(
+    await database.run(
       `INSERT INTO inventory (product_id, warehouse_id, quantity_on_hand, reorder_point) VALUES (?, ?, ?, ?)`,
       [productId, warehouse, p.qty, p.reorder]
     );
   }
-  
-  console.log(`Seeded ${products.length} products`);
 }

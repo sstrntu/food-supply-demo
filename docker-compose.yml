@@ -1,24 +1,46 @@
 version: '3.8'
 
 services:
-  backend:
+  food-supply-api:
     build:
       context: .
-      dockerfile: Dockerfile.simple
-    ports:
-      - "3001:3001"
+      dockerfile: Dockerfile
+    container_name: food-supply-api
+    environment:
+      - NODE_ENV=production
+      - PORT=3001
+      - DATABASE_PATH=./database/food_supply.db
+      - JWT_SECRET=${JWT_SECRET:-your-super-secret-jwt-key-change-this-in-production}
+      - ELEVENLABS_API_KEY=${ELEVENLABS_API_KEY:-}
+      - ELEVENLABS_AGENT_ID=${ELEVENLABS_AGENT_ID:-agent_7901khz299zdfvcbhtk3c08vcps8}
+      - CORS_ORIGINS=${CORS_ORIGINS:-https://localhost:8443}
     volumes:
       - ./database:/app/database
     restart: unless-stopped
-    environment:
-      - NODE_ENV=production
+    networks:
+      - food-supply-network
 
-  frontend:
+  food-supply-frontend:
     build:
-      context: ./frontend/dist
-      dockerfile: ../../Dockerfile.frontend
+      context: ./frontend
+      dockerfile: Dockerfile.frontend
+    container_name: food-supply-frontend
     ports:
       - "8443:8443"
+    environment:
+      - API_URL=http://food-supply-api:3001
+      - FRONTEND_HTTPS_PORT=8443
+      - SSL_KEY_PATH=/app/key.pem
+      - SSL_CERT_PATH=/app/cert.pem
+    volumes:
+      - ./key.pem:/app/key.pem:ro
+      - ./cert.pem:/app/cert.pem:ro
     restart: unless-stopped
     depends_on:
-      - backend
+      - food-supply-api
+    networks:
+      - food-supply-network
+
+networks:
+  food-supply-network:
+    driver: bridge

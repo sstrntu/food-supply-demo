@@ -28,17 +28,15 @@ COPY --from=backend-build /app/backend/dist ./backend/dist
 COPY --from=backend-build /app/backend/package*.json ./backend/
 COPY --from=backend-build /app/backend/node_modules ./backend/node_modules
 
-# Copy frontend build
+# Copy frontend build, node_modules and server
 COPY --from=frontend-build /app/frontend/dist ./frontend/dist
-
-# Copy SSL certificates
-COPY *.pem ./
+COPY --from=frontend-build /app/frontend/node_modules ./frontend/node_modules
+COPY frontend/server-https.cjs ./frontend/server-https.cjs
 
 # Create database directory
 RUN mkdir -p database
 
-WORKDIR /app/backend
+EXPOSE 8443
 
-EXPOSE 3001
-
-CMD ["node", "dist/index.js"]
+# Start both backend (HTTP) and frontend (HTTPS)
+CMD ["sh", "-c", "cd /app/backend && node dist/index.js & cd /app/frontend && API_URL=http://localhost:3001 node server-https.cjs"]

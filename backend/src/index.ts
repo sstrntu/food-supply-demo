@@ -1,43 +1,47 @@
-import https from 'https';
-import fs from 'fs';
-import path from 'path';
-import express from 'express';
+import http from 'http';
+import express, { Request, Response } from 'express';
 import cors from 'cors';
-import dotenv from 'dotenv';
 import { WebSocketServer } from 'ws';
-import { getDb, initDb } from './db';
+import { getDb, initDb, seedData } from './db';
+import { PORT, CORS_ORIGINS } from './config';
+
+// Import routes
 import authRoutes from './routes/auth';
 import inventoryRoutes from './routes/inventory';
 import productRoutes from './routes/products';
 import orderRoutes from './routes/orders';
 import warehouseRoutes from './routes/warehouses';
 import dashboardRoutes from './routes/dashboard';
+
+// Import services
 import elevenlabsService from './services/elevenlabs';
 
-dotenv.config();
-
 const app = express();
-const PORT = process.env.PORT || 3001;
 
 // Middleware
 app.use(cors({
-  origin: ['https://139.59.102.60:8443', 'https://139.59.102.60:5443', 'http://139.59.102.60:5173', '*'],
+  origin: CORS_ORIGINS,
   credentials: true
 }));
 app.use(express.json());
 
-// SSL certificates - Docker paths
-const sslOptions = {
-    key: fs.readFileSync('/app/key.pem'),
-    cert: fs.readFileSync('/app/cert.pem')
-};
+// Error handling middleware
+app.use((err: Error, _req: Request, res: Response, _next: () => void) => {
+  console.error('Error:', err);
+  res.status(500).json({ error: 'Internal server error' });
+});
 
-// Initialize database on startup
-async function startServer() {
+// Initialize database and start server
+async function startServer(): Promise<void> {
   try {
-    console.log('Initializing database...');
+    // Initialize database
     await initDb();
-    console.log('✅ Database ready');
+    console.log('✓ Database initialized');
+    
+    // Seed data
+    const db = await getDb();
+    await seedData(db);
+    console.log('✓ Sample data seeded');
     
     // Routes
     app.use('/api/auth', authRoutes);
@@ -48,37 +52,33 @@ async function startServer() {
     app.use('/api/dashboard', dashboardRoutes);
     
     // Health check
-    app.get('/health', async (req, res) => {
+    app.get('/health', async (_req: Request, res: Response) => {
       try {
         const db = await getDb();
         await db.get('SELECT 1');
-        res.json({ status: 'ok', database: 'connected' });
+        res.json({ status: 'ok', database: 'connected', timestamp: new Date().toISOString() });
       } catch (error) {
         res.status(500).json({ status: 'error', database: 'disconnected' });
       }
     });
     
-    // Create HTTPS server
-    const server = https.createServer(sslOptions, app);
+    // 404 handler
+    app.use((_req: Request, res: Response) => {
+      res.status(404).json({ error: 'Not found' });
+    });
     
-    // WebSocket server for voice AI
+    const server = http.createServer(app);
+    
+    // WebSocket server
     const wss = new WebSocketServer({ server, path: '/ws/voice' });
     
-    wss.on('connection', (ws, req) => {
-      const sessionId = `${Date.now()}-${Math.random().toString(36).substr(2, 9)}`;
-      console.log(`Voice AI client connected: ${sessionId}`);
-      
-      // Use ElevenLabs service for this connection
+    wss.on('connection', (ws, _req) => {
+      const sessionId = `${Date.now()}-${Math.random().toString(36).substring(2, 9)}`;
       elevenlabsService.setupElevenLabsVoice(ws, sessionId);
     });
     
-    // Log ElevenLabs agent ID
-    console.log(`🤖 ElevenLabs Agent ID: ${elevenlabsService.ELEVENLABS_AGENT_ID}`);
-    
-    const portNum = parseInt(PORT as string, 10);
-    server.listen(portNum, '0.0.0.0', () => {
-      console.log(`✅ HTTPS Server running on https://0.0.0.0:${portNum}`);
-      console.log(`🎙️  WebSocket server ready for voice AI connections`);
+    server.listen(PORT, '0.0.0.0', () => {
+      console.log(`✓ Server running on port ${PORT}`);
     });
     
   } catch (error) {
@@ -86,5 +86,14 @@ async function startServer() {
     process.exit(1);
   }
 }
+
+// Handle graceful shutdown
+process.on('SIGTERM', () => {
+  process.exit(0);
+});
+
+process.on('SIGINT', () => {
+  process.exit(0);
+});
 
 startServer();

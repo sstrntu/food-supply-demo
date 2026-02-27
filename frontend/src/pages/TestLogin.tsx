@@ -1,6 +1,5 @@
 import { useState } from 'react'
-
-const API_URL = 'https://139.59.102.60:3001'
+import { API_URL } from '../config'
 
 function TestLogin() {
   const [result, setResult] = useState('')

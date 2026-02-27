@@ -1,0 +1,17 @@
+FROM node:20-alpine
+
+WORKDIR /app
+
+# Copy server files
+COPY server-https.cjs ./
+
+# Copy pre-installed node_modules (avoids npm registry during build)
+COPY node_modules ./node_modules
+
+# Copy pre-built frontend dist
+COPY dist ./dist
+
+# SSL certificates will be mounted as volumes
+EXPOSE 8443
+
+CMD ["node", "server-https.cjs"]
