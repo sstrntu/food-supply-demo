@@ -15,9 +15,10 @@ if [ ! -f .env ]; then
 fi
 
 # Check for SSL certificates
-if [ ! -f key.pem ] || [ ! -f cert.pem ]; then
+mkdir -p ssl
+if [ ! -f ssl/key.pem ] || [ ! -f ssl/cert.pem ]; then
     echo "SSL certificates not found. Generating self-signed certificates..."
-    openssl req -x509 -newkey rsa:4096 -keyout key.pem -out cert.pem -days 365 -nodes -subj '/CN=localhost'
+    openssl req -x509 -newkey rsa:4096 -keyout ssl/key.pem -out ssl/cert.pem -days 365 -nodes -subj '/CN=localhost'
     echo "Self-signed certificates generated."
     echo "For production use, replace with proper SSL certificates."
 fi

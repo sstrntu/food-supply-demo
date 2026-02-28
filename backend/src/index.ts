@@ -9,9 +9,12 @@ import { PORT, CORS_ORIGINS } from './config';
 import authRoutes from './routes/auth';
 import inventoryRoutes from './routes/inventory';
 import productRoutes from './routes/products';
-import orderRoutes from './routes/orders';
 import warehouseRoutes from './routes/warehouses';
 import dashboardRoutes from './routes/dashboard';
+import hotItemsRoutes from './routes/hot-items';
+import salesRoutes from './routes/sales';
+import customerRoutes from './routes/customers';
+import weeeRoutes from './routes/weee';
 
 // Import services
 import elevenlabsService from './services/elevenlabs';
@@ -47,9 +50,12 @@ async function startServer(): Promise<void> {
     app.use('/api/auth', authRoutes);
     app.use('/api/inventory', inventoryRoutes);
     app.use('/api/products', productRoutes);
-    app.use('/api/orders', orderRoutes);
     app.use('/api/warehouses', warehouseRoutes);
     app.use('/api/dashboard', dashboardRoutes);
+    app.use('/api/hot-items', hotItemsRoutes);
+    app.use('/api/sales', salesRoutes);
+    app.use('/api/customers', customerRoutes);
+    app.use('/api/weee', weeeRoutes);
     
     // Health check
     app.get('/health', async (_req: Request, res: Response) => {

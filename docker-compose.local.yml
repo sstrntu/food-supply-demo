@@ -1,0 +1,21 @@
+version: '3.8'
+
+services:
+  food-supply-app:
+    build:
+      context: .
+      dockerfile: Dockerfile.local
+    container_name: food-supply-local
+    ports:
+      - "3010:3010"
+    environment:
+      - NODE_ENV=production
+      - PORT=3001
+      - DATABASE_PATH=./database/food_supply.db
+      - JWT_SECRET=${JWT_SECRET:-local-dev-secret-key}
+      - ELEVENLABS_API_KEY=${ELEVENLABS_API_KEY:-}
+      - ELEVENLABS_AGENT_ID=${ELEVENLABS_AGENT_ID:-agent_7901khz299zdfvcbhtk3c08vcps8}
+      - CORS_ORIGINS=http://localhost:3010
+    volumes:
+      - ./database:/app/database
+    restart: unless-stopped

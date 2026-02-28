@@ -1,15 +1,27 @@
-FROM node:20-alpine
+FROM node:20-alpine AS builder
 
 WORKDIR /app
 
-# Copy server files
+# Install deps for build
+COPY package*.json ./
+RUN npm ci
+
+# Build frontend
+COPY . .
+RUN npm run build
+
+FROM node:20-alpine AS runtime
+
+WORKDIR /app
+ENV NODE_ENV=production
+
+# Install only production deps for the HTTPS server
+COPY package*.json ./
+RUN npm ci --omit=dev
+
+# Copy server and build output
 COPY server-https.cjs ./
-
-# Copy pre-installed node_modules (avoids npm registry during build)
-COPY node_modules ./node_modules
-
-# Copy pre-built frontend dist
-COPY dist ./dist
+COPY --from=builder /app/dist ./dist
 
 # SSL certificates will be mounted as volumes
 EXPOSE 8443
