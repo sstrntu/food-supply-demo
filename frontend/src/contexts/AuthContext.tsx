@@ -53,12 +53,14 @@ export const AuthProvider: React.FC<{ children: ReactNode }> = ({ children }) =>
 
   const login = async (username: string, password: string): Promise<boolean> => {
     setError(null);
+    const normalizedUsername = username.trim();
+    const normalizedPassword = password.trim();
     
     try {
       const response = await fetch(`${API_URL}/api/auth/login`, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ username, password })
+        body: JSON.stringify({ username: normalizedUsername, password: normalizedPassword })
       });
       
       const data = await response.json();

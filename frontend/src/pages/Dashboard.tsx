@@ -8,7 +8,8 @@ import {
   Flame,
   Phone,
   Star,
-  ShoppingBag
+  ShoppingBag,
+  FileText
 } from 'lucide-react';
 import { API_URL } from '../config';
 import './Dashboard.css';
@@ -27,6 +28,132 @@ interface SalesSummary {
   weee_weekly_sold: number;
   weee_listings: number;
   hot_items_matched: number;
+}
+
+interface WeeeChannelInsight {
+  period_days: number;
+  benchmark_context: {
+    method: string;
+    note: string;
+  };
+  weee_observed: {
+    trending_items_today: number;
+    latest_week_start?: string | null;
+    prior_week_start?: string | null;
+    top_trending_categories: { category: string; item_count: number }[];
+  };
+  trend_tracking: {
+    weeks_tracked: number;
+    latest_week_start: string | null;
+    prior_week_start: string | null;
+    recurring_signals: {
+      weee_product_name: string;
+      weee_category: string;
+      weeks_seen: number;
+      current_rank: number | null;
+    }[];
+    rising_signals: {
+      weee_product_name: string;
+      weee_category: string;
+      current_rank: number | null;
+      rank_change_4w: number;
+    }[];
+    cooling_signals: {
+      weee_product_name: string;
+      weee_category: string;
+      current_rank: number | null;
+      rank_change_4w: number;
+    }[];
+    new_signals_this_week: {
+      weee_product_name: string;
+      weee_category: string;
+      current_rank: number | null;
+      match_type: 'exact' | 'alternative' | 'none';
+    }[];
+  };
+  our_weee_listings: {
+    listed_products: number;
+    avg_rating: number;
+  };
+  our_weee_performance: {
+    week_start: string | null;
+    units_sold_week: number;
+    units_wow_pct: number;
+    revenue_week: number;
+    revenue_wow_pct: number;
+    avg_rating_week: number;
+    rating_wow_delta: number;
+    sentiment: {
+      positive_reviews: number;
+      neutral_reviews: number;
+      negative_reviews: number;
+      positive_pct: number;
+      neutral_pct: number;
+      negative_pct: number;
+    };
+    top_products: {
+      name: string;
+      sku: string;
+      units_sold_week: number;
+      wow_units_pct: number;
+      avg_rating_week: number;
+      review_count_week: number;
+      negative_review_share_pct: number;
+    }[];
+    quality_watchlist: {
+      name: string;
+      sku: string;
+      units_sold_week: number;
+      wow_units_pct: number;
+      avg_rating_week: number;
+      review_count_week: number;
+      negative_review_share_pct: number;
+    }[];
+  };
+  channels: {
+    units_30d: number;
+    revenue_30d: number;
+    active_accounts_30d: number;
+  };
+  hot_item_coverage: {
+    total_hot_items: number;
+    matched_hot_items: number;
+    exact_match_items: number;
+    alternative_match_items: number;
+    unmatched_hot_items: number;
+    coverage_pct: number;
+    stock_ready_matched_items: number;
+    stock_risk_matched_items: number;
+    stock_ready_pct: number;
+    matched_items_sold_30d: number;
+  };
+  opportunities: {
+    trend_rank: number;
+    weee_trend_item: string;
+    our_product_name: string;
+    sku?: string;
+    match_type: 'exact' | 'alternative' | 'none';
+    our_30d_units: number;
+    our_30d_revenue: number;
+    account_reach_30d: number;
+    quantity_on_hand: number;
+    reorder_point: number;
+    stock_status: 'ready' | 'risk';
+    trend_presence_weeks: number;
+    rank_change_4w: number;
+    weee_units_week: number;
+    weee_units_wow_pct: number;
+    negative_review_share_pct: number;
+    opportunity_reason: string;
+    opportunity_score: number;
+    suggested_action: string;
+  }[];
+  uncovered_hot_items: {
+    weee_rank: number;
+    weee_product_name: string;
+    weee_category: string;
+  }[];
+  insights: string[];
 }
 
 interface Alert {
@@ -94,9 +221,49 @@ interface Activity {
   timestamp: string;
 }
 
+interface InvoiceItem {
+  id: number;
+  invoice_number: string;
+  issue_date: string;
+  due_date: string;
+  amount: number;
+  balance_due: number;
+  status: string;
+  assigned_to?: string;
+  follow_up_note?: string;
+  customer_id: number;
+  customer_name: string;
+  territory: string;
+  account_manager: string;
+  phone: string;
+  days_overdue?: number;
+  days_until_due?: number;
+  follow_up_priority?: 'high' | 'medium' | 'normal';
+  recommended_action?: string;
+}
+
+interface InvoiceOverview {
+  due_soon_window_days: number;
+  summary: {
+    total_invoices: number;
+    total_amount: number;
+    open_balance: number;
+    overdue_balance: number;
+    due_soon_balance: number;
+    overdue_count: number;
+    due_soon_count: number;
+    paid_count: number;
+  };
+  late_payments: InvoiceItem[];
+  due_soon: InvoiceItem[];
+  follow_up_queue: InvoiceItem[];
+}
+
 const Dashboard: FC = () => {
   const [stats, setStats] = useState<DashboardStats | null>(null);
   const [salesSummary, setSalesSummary] = useState<SalesSummary | null>(null);
+  const [weeeChannelInsight, setWeeeChannelInsight] = useState<WeeeChannelInsight | null>(null);
+  const [invoiceOverview, setInvoiceOverview] = useState<InvoiceOverview | null>(null);
   const [alerts, setAlerts] = useState<Alert[]>([]);
   const [activities, setActivities] = useState<Activity[]>([]);
   const [hotItems, setHotItems] = useState<HotItemsResponse | null>(null);
@@ -114,22 +281,26 @@ const Dashboard: FC = () => {
       const token = localStorage.getItem('token');
       const headers = { 'Authorization': `Bearer ${token}` };
 
-      const [statsRes, alertsRes, activityRes, salesRes, hotItemsRes, bisRes] = await Promise.all([
+      const [statsRes, alertsRes, activityRes, salesRes, hotItemsRes, bisRes, weeeInsightRes, invoiceRes] = await Promise.all([
         fetch(`${API_URL}/api/dashboard/stats`, { headers }),
         fetch(`${API_URL}/api/dashboard/alerts`, { headers }),
         fetch(`${API_URL}/api/dashboard/activity?limit=5`, { headers }),
         fetch(`${API_URL}/api/dashboard/sales-summary`, { headers }),
         fetch(`${API_URL}/api/hot-items/today`, { headers }),
         fetch(`${API_URL}/api/sales/back-in-stock-alerts`, { headers }),
+        fetch(`${API_URL}/api/dashboard/weee-vs-channels`, { headers }),
+        fetch(`${API_URL}/api/sales/invoices/overview?due_soon_days=7&limit=6`, { headers }),
       ]);
 
-      const [statsData, alertsData, activityData, salesData, hotItemsData, bisData] = await Promise.all([
+      const [statsData, alertsData, activityData, salesData, hotItemsData, bisData, weeeInsightData, invoiceData] = await Promise.all([
         statsRes.ok ? statsRes.json() : null,
         alertsRes.ok ? alertsRes.json() : [],
         activityRes.ok ? activityRes.json() : [],
         salesRes.ok ? salesRes.json() : null,
         hotItemsRes.ok ? hotItemsRes.json() : null,
         bisRes.ok ? bisRes.json() : { alerts: [] },
+        weeeInsightRes.ok ? weeeInsightRes.json() : null,
+        invoiceRes.ok ? invoiceRes.json() : null,
       ]);
 
       setStats(statsData);
@@ -138,6 +309,8 @@ const Dashboard: FC = () => {
       setSalesSummary(salesData);
       setHotItems(hotItemsData);
       setBackInStock(bisData.alerts || []);
+      setWeeeChannelInsight(weeeInsightData);
+      setInvoiceOverview(invoiceData);
     } catch (err) {
       setError('Failed to load dashboard data');
     } finally {
@@ -150,6 +323,15 @@ const Dashboard: FC = () => {
       style: 'currency',
       currency: 'USD'
     }).format(value || 0);
+  };
+
+  const formatSignedPct = (value: number) => {
+    const rounded = Math.round((value || 0) * 10) / 10;
+    return `${rounded > 0 ? '+' : ''}${rounded}%`;
+  };
+
+  const formatShortDate = (dateStr: string) => {
+    return new Date(dateStr).toLocaleDateString('en-US', { month: 'short', day: 'numeric' });
   };
 
   if (loading) {
@@ -221,11 +403,155 @@ const Dashboard: FC = () => {
             <ShoppingBag size={24} />
           </div>
           <div className="stat-content">
-            <div className="stat-value">{salesSummary?.weee_weekly_sold || 0}</div>
-            <div className="stat-label">Weee Sales (Week)</div>
+            <div className="stat-value">{weeeChannelInsight?.our_weee_listings.listed_products || salesSummary?.weee_listings || 0}</div>
+            <div className="stat-label">Our Weee Listings</div>
           </div>
         </div>
       </div>
+
+      {/* Weee vs Channel Insight */}
+      {weeeChannelInsight && (
+        <div className="dashboard-card weee-vs-card">
+          <div className="card-header">
+            <h2>
+              <ShoppingBag size={20} />
+              Weee (Sayweee) vs Our Sales Channels
+            </h2>
+            <span className="badge badge-fire">{weeeChannelInsight.hot_item_coverage.coverage_pct}% hot-item coverage</span>
+          </div>
+          <div className="card-body">
+            <div className="weee-vs-metrics">
+              <div className="weee-vs-metric">
+                <span className="weee-vs-label">Our Weee Units (Week)</span>
+                <strong>{weeeChannelInsight.our_weee_performance.units_sold_week}</strong>
+                <div className="weee-vs-subtext">{formatSignedPct(weeeChannelInsight.our_weee_performance.units_wow_pct)} vs prior week</div>
+              </div>
+              <div className="weee-vs-metric">
+                <span className="weee-vs-label">Our Weee Revenue (Week)</span>
+                <strong>{formatCurrency(weeeChannelInsight.our_weee_performance.revenue_week)}</strong>
+                <div className="weee-vs-subtext">{formatSignedPct(weeeChannelInsight.our_weee_performance.revenue_wow_pct)} vs prior week</div>
+              </div>
+              <div className="weee-vs-metric">
+                <span className="weee-vs-label">Avg Rating (Week)</span>
+                <strong>{weeeChannelInsight.our_weee_performance.avg_rating_week.toFixed(2)}</strong>
+                <div className="weee-vs-subtext">
+                  {weeeChannelInsight.our_weee_performance.rating_wow_delta > 0 ? '+' : ''}
+                  {weeeChannelInsight.our_weee_performance.rating_wow_delta.toFixed(2)} points vs prior week
+                </div>
+              </div>
+              <div className="weee-vs-metric">
+                <span className="weee-vs-label">Negative Review Share</span>
+                <strong>{weeeChannelInsight.our_weee_performance.sentiment.negative_pct}%</strong>
+                <div className="weee-vs-subtext">{weeeChannelInsight.our_weee_performance.sentiment.negative_reviews} negative reviews this week</div>
+              </div>
+            </div>
+
+            <div className="weee-benchmark-note">{weeeChannelInsight.benchmark_context.note}</div>
+
+            <div className="weee-top-categories">
+              <strong>Latest tracked week:</strong>{' '}
+              {weeeChannelInsight.trend_tracking.latest_week_start || 'N/A'}
+              {' '}| <strong>Observed top sellers:</strong>{' '}
+              {weeeChannelInsight.weee_observed.trending_items_today}
+              {' '}| <strong>Stock-ready mapped trends:</strong>{' '}
+              {weeeChannelInsight.hot_item_coverage.stock_ready_matched_items}
+            </div>
+
+            {weeeChannelInsight.weee_observed.top_trending_categories.length > 0 && (
+              <div className="weee-top-categories">
+                <strong>Top observed Weee categories:</strong>{' '}
+                {weeeChannelInsight.weee_observed.top_trending_categories
+                  .map((c) => `${c.category} (${c.item_count})`)
+                  .join(', ')}
+              </div>
+            )}
+
+            {weeeChannelInsight.trend_tracking.rising_signals.length > 0 && (
+              <div className="weee-opportunities">
+                <h3>Rising Weee Signals (4-week rank movement)</h3>
+                {weeeChannelInsight.trend_tracking.rising_signals.slice(0, 3).map((signal) => (
+                  <div key={`${signal.weee_product_name}-${signal.current_rank}`} className="weee-opportunity-item">
+                    <div className="weee-opportunity-title">
+                      #{signal.current_rank || '-'} {signal.weee_product_name}
+                    </div>
+                    <div className="weee-opportunity-meta">
+                      {signal.weee_category} | Rank change (4w): {signal.rank_change_4w > 0 ? `+${signal.rank_change_4w}` : signal.rank_change_4w}
+                    </div>
+                  </div>
+                ))}
+              </div>
+            )}
+
+            {weeeChannelInsight.our_weee_performance.quality_watchlist.length > 0 && (
+              <div className="weee-opportunities">
+                <h3>Our Weee Quality Watchlist</h3>
+                {weeeChannelInsight.our_weee_performance.quality_watchlist.map((item) => (
+                  <div key={`${item.sku}-watchlist`} className="weee-opportunity-item">
+                    <div className="weee-opportunity-title">
+                      {item.name} ({item.sku})
+                    </div>
+                    <div className="weee-opportunity-meta">
+                      Avg rating: {item.avg_rating_week.toFixed(2)} | Negative share: {item.negative_review_share_pct}% | Units: {item.units_sold_week}
+                    </div>
+                  </div>
+                ))}
+              </div>
+            )}
+
+            {weeeChannelInsight.opportunities.length > 0 && (
+              <div className="weee-opportunities">
+                <h3>Best Items To Push This Week</h3>
+                {weeeChannelInsight.opportunities.slice(0, 3).map((item) => (
+                  <div key={`${item.sku || item.our_product_name}-${item.trend_rank}`} className="weee-opportunity-item">
+                    <div className="weee-opportunity-title">
+                      Weee trend #{item.trend_rank}: {item.weee_trend_item}
+                    </div>
+                    <div className="weee-opportunity-subtitle">
+                      Our matching product: <strong>{item.our_product_name}</strong>
+                    </div>
+
+                    <div className="weee-opportunity-summary">
+                      Why it matters: Seen in {item.trend_presence_weeks} of the last {weeeChannelInsight.trend_tracking.weeks_tracked} weeks
+                      {item.rank_change_4w > 0 ? ` and moving up (+${item.rank_change_4w} in 4 weeks)` : ''}
+                      {item.rank_change_4w < 0 ? ` and cooling down (${item.rank_change_4w} in 4 weeks)` : ''}.
+                    </div>
+
+                    <div className="weee-opportunity-summary">
+                      Sales gap: {item.our_30d_units === 0
+                        ? 'No sales in our other channels in the last 30 days.'
+                        : `${item.our_30d_units} units sold in our other channels in the last 30 days.`}
+                      {' '}
+                      {item.account_reach_30d <= 2
+                        ? `Only ${item.account_reach_30d} account${item.account_reach_30d === 1 ? '' : 's'} reached so far.`
+                        : `${item.account_reach_30d} accounts reached.`}
+                    </div>
+
+                    <div className="weee-opportunity-summary">
+                      On Weee this week: {item.weee_units_week} units ({formatSignedPct(item.weee_units_wow_pct)} vs last week).
+                      {' '}
+                      Review risk: {item.negative_review_share_pct}% negative.
+                      {' '}
+                      Stock: {item.stock_status === 'ready' ? 'Ready to sell' : 'Restock needed'}.
+                    </div>
+
+                    <div className="weee-opportunity-action">
+                      <strong>Rep action:</strong> {item.suggested_action}
+                    </div>
+                  </div>
+                ))}
+              </div>
+            )}
+
+            {weeeChannelInsight.insights.length > 0 && (
+              <div className="weee-insight-list">
+                {weeeChannelInsight.insights.slice(0, 3).map((insight, idx) => (
+                  <div key={idx} className="weee-insight-item">{insight}</div>
+                ))}
+              </div>
+            )}
+          </div>
+        </div>
+      )}
 
       {/* Hot Items Card */}
       {hotItems && hotItems.hot_items.length > 0 && (
@@ -399,6 +725,155 @@ const Dashboard: FC = () => {
           </div>
         </div>
       </div>
+
+      {invoiceOverview && (
+        <>
+          <div className="dashboard-grid invoice-summary-grid">
+            <div className="dashboard-card invoice-summary-card">
+              <div className="card-header">
+                <h2>
+                  <FileText size={20} />
+                  Invoice Snapshot
+                </h2>
+              </div>
+              <div className="card-body">
+                <div className="invoice-metrics-grid">
+                  <div className="invoice-metric">
+                    <span className="invoice-metric-label">Open Balance</span>
+                    <strong>{formatCurrency(invoiceOverview.summary.open_balance)}</strong>
+                  </div>
+                  <div className="invoice-metric">
+                    <span className="invoice-metric-label">Overdue Balance</span>
+                    <strong>{formatCurrency(invoiceOverview.summary.overdue_balance)}</strong>
+                  </div>
+                  <div className="invoice-metric">
+                    <span className="invoice-metric-label">Due in {invoiceOverview.due_soon_window_days} Days</span>
+                    <strong>{formatCurrency(invoiceOverview.summary.due_soon_balance)}</strong>
+                  </div>
+                  <div className="invoice-metric">
+                    <span className="invoice-metric-label">Paid Invoices</span>
+                    <strong>{invoiceOverview.summary.paid_count}</strong>
+                  </div>
+                </div>
+
+                <div className="invoice-chip-row">
+                  <span className="invoice-chip danger">{invoiceOverview.summary.overdue_count} late</span>
+                  <span className="invoice-chip warning">{invoiceOverview.summary.due_soon_count} due soon</span>
+                  <span className="invoice-chip neutral">{invoiceOverview.summary.total_invoices} total invoices</span>
+                </div>
+              </div>
+            </div>
+
+            <div className="dashboard-card invoice-followup-card">
+              <div className="card-header">
+                <h2>
+                  <Phone size={20} />
+                  Invoice Follow-Up Queue
+                </h2>
+              </div>
+              <div className="card-body">
+                <div className="invoice-list">
+                  {invoiceOverview.follow_up_queue.length === 0 ? (
+                    <div className="empty-state">
+                      <TrendingUp size={40} />
+                      <p>No follow-ups right now</p>
+                    </div>
+                  ) : (
+                    invoiceOverview.follow_up_queue.slice(0, 6).map((item) => (
+                      <div key={`followup-${item.id}`} className="invoice-item-row">
+                        <div className="invoice-item-main">
+                          <div className="invoice-item-title">
+                            {item.customer_name} &bull; {item.invoice_number}
+                          </div>
+                          <div className="invoice-item-meta">
+                            {item.days_overdue !== undefined
+                              ? `${item.days_overdue} day${item.days_overdue === 1 ? '' : 's'} overdue`
+                              : `Due in ${item.days_until_due || 0} day${(item.days_until_due || 0) === 1 ? '' : 's'}`}
+                            {' '} &bull; Balance {formatCurrency(item.balance_due)}
+                            {' '} &bull; {item.territory}
+                          </div>
+                          <div className="invoice-item-note">
+                            {item.recommended_action || item.follow_up_note || 'Follow up with customer accounts payable contact.'}
+                          </div>
+                        </div>
+                        <span className={`invoice-priority ${item.follow_up_priority || 'normal'}`}>
+                          {(item.follow_up_priority || 'normal').toUpperCase()}
+                        </span>
+                      </div>
+                    ))
+                  )}
+                </div>
+              </div>
+            </div>
+          </div>
+
+          <div className="dashboard-grid invoice-buckets-grid">
+            <div className="dashboard-card invoice-late-card">
+              <div className="card-header">
+                <h2>
+                  <AlertTriangle size={20} />
+                  Late Payments
+                </h2>
+                <span className="badge badge-danger">{invoiceOverview.late_payments.length}</span>
+              </div>
+              <div className="card-body">
+                <div className="invoice-list">
+                  {invoiceOverview.late_payments.length === 0 ? (
+                    <div className="empty-state">
+                      <TrendingUp size={40} />
+                      <p>No late payments</p>
+                    </div>
+                  ) : (
+                    invoiceOverview.late_payments.map((item) => (
+                      <div key={`late-${item.id}`} className="invoice-item-row compact">
+                        <div className="invoice-item-main">
+                          <div className="invoice-item-title">{item.customer_name}</div>
+                          <div className="invoice-item-meta">
+                            {item.invoice_number} &bull; Due {formatShortDate(item.due_date)} &bull; {item.days_overdue || 0}d late
+                          </div>
+                        </div>
+                        <div className="invoice-amount">{formatCurrency(item.balance_due)}</div>
+                      </div>
+                    ))
+                  )}
+                </div>
+              </div>
+            </div>
+
+            <div className="dashboard-card invoice-due-card">
+              <div className="card-header">
+                <h2>
+                  <DollarSign size={20} />
+                  Due Soon
+                </h2>
+                <span className="badge badge-warning">{invoiceOverview.due_soon.length}</span>
+              </div>
+              <div className="card-body">
+                <div className="invoice-list">
+                  {invoiceOverview.due_soon.length === 0 ? (
+                    <div className="empty-state">
+                      <TrendingUp size={40} />
+                      <p>No upcoming due invoices</p>
+                    </div>
+                  ) : (
+                    invoiceOverview.due_soon.map((item) => (
+                      <div key={`due-${item.id}`} className="invoice-item-row compact">
+                        <div className="invoice-item-main">
+                          <div className="invoice-item-title">{item.customer_name}</div>
+                          <div className="invoice-item-meta">
+                            {item.invoice_number} &bull; Due {formatShortDate(item.due_date)} &bull; in {item.days_until_due || 0}d
+                          </div>
+                        </div>
+                        <div className="invoice-amount">{formatCurrency(item.balance_due)}</div>
+                      </div>
+                    ))
+                  )}
+                </div>
+              </div>
+            </div>
+          </div>
+        </>
+      )}
 
       {/* Inventory by Category */}
       {stats?.inventoryByCategory && stats.inventoryByCategory.length > 0 && (

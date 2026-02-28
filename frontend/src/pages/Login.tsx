@@ -17,13 +17,15 @@ const Login: FC = () => {
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault()
     setError('')
+    const normalizedUsername = username.trim()
+    const normalizedPassword = password.trim()
     
     console.log('[Login] Form submitted')
-    console.log('[Login] Username:', username)
-    console.log('[Login] Password length:', password?.length)
+    console.log('[Login] Username:', normalizedUsername)
+    console.log('[Login] Password length:', normalizedPassword?.length)
     
     // Simple validation
-    if (!username.trim() || !password) {
+    if (!normalizedUsername || !normalizedPassword) {
       console.log('[Login] Validation failed - empty fields')
       setError('Please enter both username and password')
       return
@@ -33,7 +35,7 @@ const Login: FC = () => {
     console.log('[Login] Calling login function...')
 
     try {
-      const success = await login(username, password)
+      const success = await login(normalizedUsername, normalizedPassword)
       console.log('[Login] Login returned:', success)
       
       if (success) {

@@ -224,4 +224,127 @@ router.get('/back-in-stock-alerts', async (req, res) => {
   }
 });
 
+// Invoice summary and follow-up queue
+router.get('/invoices/overview', async (req, res) => {
+  try {
+    const db = await getDb();
+    const dueSoonDays = parseInt(req.query.due_soon_days as string) || 7;
+    const limit = parseInt(req.query.limit as string) || 5;
+
+    const summary = await db.get(`
+      SELECT
+        COUNT(*) as total_invoices,
+        COALESCE(SUM(amount), 0) as total_amount,
+        COALESCE(SUM(balance_due), 0) as open_balance,
+        COALESCE(SUM(CASE WHEN balance_due > 0 AND due_date < date('now') THEN balance_due ELSE 0 END), 0) as overdue_balance,
+        COALESCE(SUM(CASE
+          WHEN balance_due > 0
+           AND due_date >= date('now')
+           AND due_date <= date('now', '+' || ? || ' days')
+          THEN balance_due ELSE 0 END), 0) as due_soon_balance,
+        COUNT(CASE WHEN balance_due > 0 AND due_date < date('now') THEN 1 END) as overdue_count,
+        COUNT(CASE
+          WHEN balance_due > 0
+           AND due_date >= date('now')
+           AND due_date <= date('now', '+' || ? || ' days')
+          THEN 1 END) as due_soon_count,
+        COUNT(CASE WHEN balance_due <= 0 THEN 1 END) as paid_count
+      FROM invoices
+    `, [dueSoonDays, dueSoonDays]) as any;
+
+    const latePayments = await db.all(`
+      SELECT
+        i.id,
+        i.invoice_number,
+        i.issue_date,
+        i.due_date,
+        i.amount,
+        i.balance_due,
+        i.status,
+        i.assigned_to,
+        i.follow_up_note,
+        c.id as customer_id,
+        c.name as customer_name,
+        c.territory,
+        c.account_manager,
+        c.phone,
+        CAST(julianday('now') - julianday(i.due_date) AS INTEGER) as days_overdue
+      FROM invoices i
+      JOIN customers c ON i.customer_id = c.id
+      WHERE i.balance_due > 0 AND i.due_date < date('now')
+      ORDER BY days_overdue DESC, i.balance_due DESC
+      LIMIT ?
+    `, [limit]);
+
+    const dueSoon = await db.all(`
+      SELECT
+        i.id,
+        i.invoice_number,
+        i.issue_date,
+        i.due_date,
+        i.amount,
+        i.balance_due,
+        i.status,
+        i.assigned_to,
+        i.follow_up_note,
+        c.id as customer_id,
+        c.name as customer_name,
+        c.territory,
+        c.account_manager,
+        c.phone,
+        CAST(julianday(i.due_date) - julianday('now') AS INTEGER) as days_until_due
+      FROM invoices i
+      JOIN customers c ON i.customer_id = c.id
+      WHERE i.balance_due > 0
+        AND i.due_date >= date('now')
+        AND i.due_date <= date('now', '+' || ? || ' days')
+      ORDER BY days_until_due ASC, i.balance_due DESC
+      LIMIT ?
+    `, [dueSoonDays, limit]);
+
+    const followUps = [
+      ...(latePayments as any[]).map((i) => ({
+        ...i,
+        follow_up_priority: i.days_overdue >= 14 ? 'high' : 'medium',
+        recommended_action: i.days_overdue >= 14
+          ? 'Escalate with AP manager today before new orders.'
+          : 'Call today and confirm exact payment date.',
+      })),
+      ...(dueSoon as any[]).map((i) => ({
+        ...i,
+        follow_up_priority: i.days_until_due <= 2 ? 'medium' : 'normal',
+        recommended_action: i.days_until_due <= 2
+          ? 'Send reminder and confirm ACH/check timing.'
+          : 'Send a courtesy reminder email.',
+      })),
+    ]
+      .sort((a, b) => {
+        const priorityRank: Record<string, number> = { high: 3, medium: 2, normal: 1 };
+        return (priorityRank[b.follow_up_priority] || 0) - (priorityRank[a.follow_up_priority] || 0)
+          || (b.balance_due || 0) - (a.balance_due || 0);
+      })
+      .slice(0, limit + 2);
+
+    res.json({
+      due_soon_window_days: dueSoonDays,
+      summary: {
+        total_invoices: summary?.total_invoices || 0,
+        total_amount: Math.round((summary?.total_amount || 0) * 100) / 100,
+        open_balance: Math.round((summary?.open_balance || 0) * 100) / 100,
+        overdue_balance: Math.round((summary?.overdue_balance || 0) * 100) / 100,
+        due_soon_balance: Math.round((summary?.due_soon_balance || 0) * 100) / 100,
+        overdue_count: summary?.overdue_count || 0,
+        due_soon_count: summary?.due_soon_count || 0,
+        paid_count: summary?.paid_count || 0,
+      },
+      late_payments: latePayments || [],
+      due_soon: dueSoon || [],
+      follow_up_queue: followUps,
+    });
+  } catch (error) {
+    console.error('Error fetching invoice overview:', error);
+    res.status(500).json({ error: 'Failed to fetch invoice overview' });
+  }
+});
+
 export default router;

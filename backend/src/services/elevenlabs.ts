@@ -55,7 +55,7 @@ async function processVoiceCommand(text: string): Promise<{ text: string; data?:
   }
 
   // --- UC1: Hot items brief ---
-  if (lowerText.match(/hot items|weee.*trending|what.*push|today.*brief|top.*weee/)) {
+  if (lowerText.match(/hot items|(?:weee|sayweee).*trending|what.*push|today.*brief|top.*(?:weee|sayweee)/)) {
     const items = await db.all(`
       SELECT h.weee_rank, h.weee_product_name, h.match_type, p.name as our_product
       FROM hot_items h
@@ -66,7 +66,7 @@ async function processVoiceCommand(text: string): Promise<{ text: string; data?:
 
     if (!items.length) return { text: 'No hot items data for today. Please check back later.' };
     const list = (items as any[]).map(i => `${i.weee_rank}. ${i.weee_product_name}`).join(', ');
-    return { text: `Today's top Weee hot items: ${list}.`, data: items };
+    return { text: `Today's top Weee (Sayweee) hot items: ${list}.`, data: items };
   }
 
   // --- UC2: Match to catalog ---
@@ -211,7 +211,7 @@ async function processVoiceCommand(text: string): Promise<{ text: string; data?:
   }
 
   // --- Weee reviews ---
-  if (lowerText.match(/review|feedback|rating|what.*customer.*say|weee.*comment/)) {
+  if (lowerText.match(/review|feedback|rating|what.*customer.*say|(?:weee|sayweee).*comment/)) {
     const productMatch = lowerText.match(/(?:for|about|on)\s+([a-z\s]+?)(?:\s+on|\s+from|\?|$)/i);
     let productName = productMatch ? productMatch[1].trim() : '';
 
@@ -237,11 +237,11 @@ async function processVoiceCommand(text: string): Promise<{ text: string; data?:
     const reviewText = (reviews as any[]).map(r =>
       `${r.name} — ${r.reviewer_name} (${r.rating}/5): "${r.comment}"`
     ).join('. ');
-    return { text: `Recent Weee reviews: ${reviewText}`, data: reviews };
+    return { text: `Recent Weee (Sayweee) reviews: ${reviewText}`, data: reviews };
   }
 
   // --- Weee performance ---
-  if (lowerText.match(/weee.*sales|weee.*performance|weee.*listing|how.*doing.*weee|our.*weee/)) {
+  if (lowerText.match(/(?:weee|sayweee).*sales|(?:weee|sayweee).*performance|(?:weee|sayweee).*listing|how.*doing.*(?:weee|sayweee)|our.*(?:weee|sayweee)/)) {
     const topProducts = await db.all(`
       SELECT name, sku, weee_rating, weee_review_count, weee_weekly_sold
       FROM products
@@ -259,7 +259,7 @@ async function processVoiceCommand(text: string): Promise<{ text: string; data?:
     ).join(', ');
 
     return {
-      text: `We have ${stats.total} products on Weee with an average rating of ${stats.avg_rating.toFixed(1)}. Top sellers this week: ${list}.`,
+      text: `We have ${stats.total} products on Weee (Sayweee) with an average rating of ${stats.avg_rating.toFixed(1)}. Top sellers this week: ${list}.`,
       data: topProducts,
     };
   }
@@ -367,7 +367,7 @@ async function processVoiceCommand(text: string): Promise<{ text: string; data?:
   // Greeting
   if (lowerText.match(/hello|hi|hey/)) {
     return {
-      text: "Hello! I'm your U.S. Trading sales assistant. Ask me about today's hot items, top sellers by territory, back-in-stock alerts, Weee reviews, or inventory levels.",
+      text: "Hello! I'm your U.S. Trading sales assistant. Ask me about today's hot items, top sellers by territory, back-in-stock alerts, Weee or Sayweee reviews, or inventory levels.",
       data: null
     };
   }
@@ -375,7 +375,7 @@ async function processVoiceCommand(text: string): Promise<{ text: string; data?:
   // Help
   if (lowerText.match(/help|what can you do/)) {
     return {
-      text: "I can help with: today's Weee hot items, talking points, cross-sell pairings, top sellers by territory, category trends, back-in-stock alerts, Weee reviews, and inventory checks. What would you like to know?",
+      text: "I can help with: today's Weee/Sayweee hot items, talking points, cross-sell pairings, top sellers by territory, category trends, back-in-stock alerts, Weee reviews, and inventory checks. What would you like to know?",
       data: null
     };
   }

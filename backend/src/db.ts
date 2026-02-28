@@ -40,10 +40,13 @@ export async function initDb(): Promise<Database<sqlite3.Database, sqlite3.State
 
   await database.exec(`
     -- Drop all tables in dependency order
+    DROP TABLE IF EXISTS weee_product_weekly_metrics;
+    DROP TABLE IF EXISTS weee_top_seller_weekly;
     DROP TABLE IF EXISTS weee_reviews;
     DROP TABLE IF EXISTS product_pairings;
     DROP TABLE IF EXISTS hot_items;
     DROP TABLE IF EXISTS sales_history;
+    DROP TABLE IF EXISTS invoices;
     DROP TABLE IF EXISTS inventory;
     DROP TABLE IF EXISTS customers;
     DROP TABLE IF EXISTS products;
@@ -103,6 +106,23 @@ export async function initDb(): Promise<Database<sqlite3.Database, sqlite3.State
       created_at DATETIME DEFAULT CURRENT_TIMESTAMP
     );
 
+    -- Invoices / accounts receivable
+    CREATE TABLE invoices (
+      id INTEGER PRIMARY KEY AUTOINCREMENT,
+      invoice_number TEXT UNIQUE NOT NULL,
+      customer_id INTEGER NOT NULL,
+      issue_date TEXT NOT NULL,
+      due_date TEXT NOT NULL,
+      amount REAL NOT NULL DEFAULT 0,
+      balance_due REAL NOT NULL DEFAULT 0,
+      status TEXT NOT NULL DEFAULT 'open',
+      paid_date TEXT,
+      assigned_to TEXT,
+      follow_up_note TEXT,
+      created_at DATETIME DEFAULT CURRENT_TIMESTAMP,
+      FOREIGN KEY (customer_id) REFERENCES customers(id) ON DELETE CASCADE
+    );
+
     -- Sales history (daily per-customer per-product)
     CREATE TABLE sales_history (
       id INTEGER PRIMARY KEY AUTOINCREMENT,
@@ -130,6 +150,34 @@ export async function initDb(): Promise<Database<sqlite3.Database, sqlite3.State
       talking_point TEXT,
       universal_pitch TEXT,
       FOREIGN KEY (matched_product_id) REFERENCES products(id) ON DELETE SET NULL
+    );
+
+    -- Weekly Weee/Sayweee top seller snapshots (observed rankings only)
+    CREATE TABLE weee_top_seller_weekly (
+      id INTEGER PRIMARY KEY AUTOINCREMENT,
+      week_start TEXT NOT NULL,
+      weee_rank INTEGER NOT NULL,
+      weee_product_name TEXT NOT NULL,
+      weee_category TEXT,
+      matched_product_id INTEGER,
+      match_type TEXT,
+      FOREIGN KEY (matched_product_id) REFERENCES products(id) ON DELETE SET NULL
+    );
+
+    -- Weekly performance for our own products listed on Weee
+    CREATE TABLE weee_product_weekly_metrics (
+      id INTEGER PRIMARY KEY AUTOINCREMENT,
+      week_start TEXT NOT NULL,
+      product_id INTEGER NOT NULL,
+      units_sold INTEGER NOT NULL DEFAULT 0,
+      revenue REAL NOT NULL DEFAULT 0,
+      avg_rating REAL,
+      review_count INTEGER NOT NULL DEFAULT 0,
+      positive_reviews INTEGER NOT NULL DEFAULT 0,
+      neutral_reviews INTEGER NOT NULL DEFAULT 0,
+      negative_reviews INTEGER NOT NULL DEFAULT 0,
+      UNIQUE(week_start, product_id),
+      FOREIGN KEY (product_id) REFERENCES products(id) ON DELETE CASCADE
     );
 
     -- Product pairings (cross-sell)
@@ -162,10 +210,17 @@ export async function initDb(): Promise<Database<sqlite3.Database, sqlite3.State
     CREATE INDEX idx_inventory_warehouse ON inventory(warehouse_id);
     CREATE INDEX idx_customers_territory ON customers(territory);
     CREATE INDEX idx_customers_manager ON customers(account_manager);
+    CREATE INDEX idx_invoices_customer ON invoices(customer_id);
+    CREATE INDEX idx_invoices_due_date ON invoices(due_date);
+    CREATE INDEX idx_invoices_status ON invoices(status);
     CREATE INDEX idx_sales_history_customer ON sales_history(customer_id);
     CREATE INDEX idx_sales_history_product ON sales_history(product_id);
     CREATE INDEX idx_sales_history_date ON sales_history(sale_date);
     CREATE INDEX idx_hot_items_date ON hot_items(weee_date);
+    CREATE INDEX idx_weee_weekly_trends_week ON weee_top_seller_weekly(week_start);
+    CREATE INDEX idx_weee_weekly_trends_product ON weee_top_seller_weekly(matched_product_id);
+    CREATE INDEX idx_weee_product_weekly_week ON weee_product_weekly_metrics(week_start);
+    CREATE INDEX idx_weee_product_weekly_product ON weee_product_weekly_metrics(product_id);
     CREATE INDEX idx_weee_reviews_product ON weee_reviews(product_id);
   `);
 
@@ -286,6 +341,66 @@ export async function seedData(database: Database): Promise<void> {
     );
   }
 
+  const today = new Date();
+  const dateOffset = (days: number) => {
+    const d = new Date(today);
+    d.setDate(d.getDate() + days);
+    return d.toISOString().split('T')[0];
+  };
+
+  // --- INVOICES (A/R tracking for dashboard follow-ups) ---
+  const invoiceSeeds = [
+    { invoice_number: 'INV-2026-1001', customer_id: 1, issue_offset: -52, due_offset: -22, amount: 14850, balance_due: 14850, paid_offset: null, follow_up_note: 'No response to last two reminders.' },
+    { invoice_number: 'INV-2026-1002', customer_id: 4, issue_offset: -48, due_offset: -17, amount: 22100, balance_due: 6300, paid_offset: null, follow_up_note: 'Partial payment received; confirm remaining amount schedule.' },
+    { invoice_number: 'INV-2026-1003', customer_id: 7, issue_offset: -39, due_offset: -9, amount: 10240, balance_due: 10240, paid_offset: null, follow_up_note: 'Escalate to AP contact before next shipment release.' },
+    { invoice_number: 'INV-2026-1004', customer_id: 9, issue_offset: -34, due_offset: -5, amount: 12780, balance_due: 4200, paid_offset: null, follow_up_note: 'Promise-to-pay requested by customer this week.' },
+    { invoice_number: 'INV-2026-1005', customer_id: 2, issue_offset: -28, due_offset: 2, amount: 8650, balance_due: 8650, paid_offset: null, follow_up_note: 'Send reminder and confirm payment method.' },
+    { invoice_number: 'INV-2026-1006', customer_id: 5, issue_offset: -26, due_offset: 4, amount: 7330, balance_due: 7330, paid_offset: null, follow_up_note: 'Follow up before due date to avoid delay.' },
+    { invoice_number: 'INV-2026-1007', customer_id: 8, issue_offset: -24, due_offset: 6, amount: 5940, balance_due: 5940, paid_offset: null, follow_up_note: 'Courtesy reminder and invoice copy already sent.' },
+    { invoice_number: 'INV-2026-1008', customer_id: 10, issue_offset: -20, due_offset: 1, amount: 3180, balance_due: 3180, paid_offset: null, follow_up_note: 'Priority call today; payment due tomorrow.' },
+    { invoice_number: 'INV-2026-1009', customer_id: 3, issue_offset: -16, due_offset: 14, amount: 4890, balance_due: 4890, paid_offset: null, follow_up_note: 'No immediate risk; monitor.' },
+    { invoice_number: 'INV-2026-1010', customer_id: 6, issue_offset: -18, due_offset: 12, amount: 6120, balance_due: 6120, paid_offset: null, follow_up_note: 'No immediate risk; monitor.' },
+    { invoice_number: 'INV-2026-1011', customer_id: 9, issue_offset: -13, due_offset: 18, amount: 9540, balance_due: 9540, paid_offset: null, follow_up_note: 'Bundle with upcoming reorder call.' },
+    { invoice_number: 'INV-2026-1012', customer_id: 1, issue_offset: -32, due_offset: -4, amount: 13200, balance_due: 0, paid_offset: -2, follow_up_note: 'Paid in full.' },
+    { invoice_number: 'INV-2026-1013', customer_id: 4, issue_offset: -29, due_offset: -7, amount: 18890, balance_due: 0, paid_offset: -1, follow_up_note: 'Paid after reminder call.' },
+    { invoice_number: 'INV-2026-1014', customer_id: 7, issue_offset: -36, due_offset: -12, amount: 11200, balance_due: 0, paid_offset: -9, follow_up_note: 'Paid in full.' },
+    { invoice_number: 'INV-2026-1015', customer_id: 5, issue_offset: -21, due_offset: -2, amount: 6940, balance_due: 0, paid_offset: 0, follow_up_note: 'Paid today.' },
+  ];
+
+  for (const inv of invoiceSeeds) {
+    const issueDate = dateOffset(inv.issue_offset);
+    const dueDate = dateOffset(inv.due_offset);
+    const status = inv.balance_due <= 0
+      ? 'paid'
+      : inv.due_offset < 0
+        ? 'overdue'
+        : inv.due_offset <= 7
+          ? 'due_soon'
+          : 'open';
+    const paidDate = inv.balance_due <= 0 && inv.paid_offset !== null
+      ? dateOffset(inv.paid_offset)
+      : null;
+    const owner = customers[inv.customer_id - 1]?.account_manager || 'Unassigned';
+
+    await database.run(
+      `INSERT INTO invoices
+        (invoice_number, customer_id, issue_date, due_date, amount, balance_due, status, paid_date, assigned_to, follow_up_note)
+       VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
+      [
+        inv.invoice_number,
+        inv.customer_id,
+        issueDate,
+        dueDate,
+        inv.amount,
+        inv.balance_due,
+        status,
+        paidDate,
+        owner,
+        inv.follow_up_note,
+      ]
+    );
+  }
+
   // --- SALES HISTORY (30 days of deterministic data) ---
   // Customer product baskets (customer index -> array of {sku, baseQty, basePrice})
   const customerBaskets: Record<number, { sku: string; baseQty: number }[]> = {
@@ -337,8 +452,6 @@ export async function seedData(database: Database): Promise<void> {
       { sku: 'SNACK-002', baseQty: 10 }, { sku: 'BEV-004', baseQty: 8 },
     ],
   };
-
-  const today = new Date();
 
   // Get product prices for revenue calculation
   const productPrices: Record<string, number> = {};
@@ -519,6 +632,187 @@ export async function seedData(database: Database): Promise<void> {
     }
   }
 
+  // --- WEEKLY WEEE SNAPSHOTS (8-week trend tracking for observed top sellers) ---
+  const currentWeekStart = new Date(today);
+  const dayOfWeek = currentWeekStart.getDay(); // 0=Sun
+  const mondayOffset = dayOfWeek === 0 ? -6 : (1 - dayOfWeek);
+  currentWeekStart.setDate(currentWeekStart.getDate() + mondayOffset);
+  const toDateStr = (d: Date) => d.toISOString().split('T')[0];
+  const getWeekStartStr = (weeksAgo: number) => {
+    const d = new Date(currentWeekStart);
+    d.setDate(d.getDate() - (weeksAgo * 7));
+    return toDateStr(d);
+  };
+
+  const weeklyTopSellerSnapshots = [
+    {
+      weeksAgo: 7,
+      items: [
+        { rank: 1, name: 'Nissin Cup Noodles Seafood Flavor 6-pack', category: 'Noodles', sku: 'NOODLE-005', matchType: 'alternative' },
+        { rank: 2, name: 'Pocky Chocolate Sticks 10-pack', category: 'Snacks', sku: 'SNACK-002', matchType: 'exact' },
+        { rank: 3, name: 'Vita Coconut Water 330ml 6-pack', category: 'Beverages', sku: 'BEV-001', matchType: 'exact' },
+        { rank: 4, name: 'Bibigo Gyoza Dumplings 24pc', category: 'Frozen', sku: 'FROZEN-001', matchType: 'exact' },
+        { rank: 5, name: 'Orion Choco Pie 12pk', category: 'Snacks', sku: null, matchType: 'none' },
+      ],
+    },
+    {
+      weeksAgo: 6,
+      items: [
+        { rank: 1, name: 'Pocky Chocolate Sticks 10-pack', category: 'Snacks', sku: 'SNACK-002', matchType: 'exact' },
+        { rank: 2, name: 'Nissin Cup Noodles Seafood Flavor 6-pack', category: 'Noodles', sku: 'NOODLE-005', matchType: 'alternative' },
+        { rank: 3, name: 'Vita Coconut Water 330ml 6-pack', category: 'Beverages', sku: 'BEV-001', matchType: 'exact' },
+        { rank: 4, name: 'Dragonfly Brand Pandan Coconut Rice Mix', category: 'Rice & Grains', sku: 'RICE-004', matchType: 'alternative' },
+        { rank: 5, name: 'Kewpie Japanese Mayo 17.6oz', category: 'Sauces', sku: null, matchType: 'none' },
+      ],
+    },
+    {
+      weeksAgo: 5,
+      items: [
+        { rank: 1, name: 'Pocky Chocolate Sticks 10-pack', category: 'Snacks', sku: 'SNACK-002', matchType: 'exact' },
+        { rank: 2, name: 'Vita Coconut Water 330ml 6-pack', category: 'Beverages', sku: 'BEV-001', matchType: 'exact' },
+        { rank: 3, name: 'Nissin Cup Noodles Seafood Flavor 6-pack', category: 'Noodles', sku: 'NOODLE-005', matchType: 'alternative' },
+        { rank: 4, name: 'Dragonfly Brand Pandan Coconut Rice Mix', category: 'Rice & Grains', sku: 'RICE-004', matchType: 'alternative' },
+        { rank: 5, name: 'Thai Kitchen Coconut Milk 13.5oz', category: 'Pantry', sku: 'PANTRY-003', matchType: 'exact' },
+      ],
+    },
+    {
+      weeksAgo: 4,
+      items: [
+        { rank: 1, name: 'Pocky Chocolate Sticks 10-pack', category: 'Snacks', sku: 'SNACK-002', matchType: 'exact' },
+        { rank: 2, name: 'Vita Coconut Water 330ml 6-pack', category: 'Beverages', sku: 'BEV-001', matchType: 'exact' },
+        { rank: 3, name: 'Dragonfly Brand Pandan Coconut Rice Mix', category: 'Rice & Grains', sku: 'RICE-004', matchType: 'alternative' },
+        { rank: 4, name: 'Nissin Cup Noodles Seafood Flavor 6-pack', category: 'Noodles', sku: 'NOODLE-005', matchType: 'alternative' },
+        { rank: 5, name: 'Bibigo Gyoza Dumplings 24pc', category: 'Frozen', sku: 'FROZEN-001', matchType: 'exact' },
+      ],
+    },
+    {
+      weeksAgo: 3,
+      items: [
+        { rank: 1, name: 'Dragonfly Brand Pandan Coconut Rice Mix', category: 'Rice & Grains', sku: 'RICE-004', matchType: 'alternative' },
+        { rank: 2, name: 'Pocky Chocolate Sticks 10-pack', category: 'Snacks', sku: 'SNACK-002', matchType: 'exact' },
+        { rank: 3, name: 'Vita Coconut Water 330ml 6-pack', category: 'Beverages', sku: 'BEV-001', matchType: 'exact' },
+        { rank: 4, name: 'Thai Kitchen Coconut Milk 13.5oz', category: 'Pantry', sku: 'PANTRY-003', matchType: 'exact' },
+        { rank: 5, name: 'Nissin Cup Noodles Seafood Flavor 6-pack', category: 'Noodles', sku: 'NOODLE-005', matchType: 'alternative' },
+      ],
+    },
+    {
+      weeksAgo: 2,
+      items: [
+        { rank: 1, name: 'Dragonfly Brand Pandan Coconut Rice Mix', category: 'Rice & Grains', sku: 'RICE-004', matchType: 'alternative' },
+        { rank: 2, name: 'Vita Coconut Water 330ml 6-pack', category: 'Beverages', sku: 'BEV-001', matchType: 'exact' },
+        { rank: 3, name: 'Pocky Chocolate Sticks 10-pack', category: 'Snacks', sku: 'SNACK-002', matchType: 'exact' },
+        { rank: 4, name: 'Nissin Cup Noodles Seafood Flavor 6-pack', category: 'Noodles', sku: 'NOODLE-005', matchType: 'alternative' },
+        { rank: 5, name: 'Kewpie Japanese Mayo 17.6oz', category: 'Sauces', sku: null, matchType: 'none' },
+      ],
+    },
+    {
+      weeksAgo: 1,
+      items: [
+        { rank: 1, name: 'Dragonfly Brand Pandan Coconut Rice Mix', category: 'Rice & Grains', sku: 'RICE-004', matchType: 'alternative' },
+        { rank: 2, name: 'Pocky Chocolate Sticks 10-pack', category: 'Snacks', sku: 'SNACK-002', matchType: 'exact' },
+        { rank: 3, name: 'Vita Coconut Water 330ml 6-pack', category: 'Beverages', sku: 'BEV-001', matchType: 'exact' },
+        { rank: 4, name: 'Nissin Cup Noodles Seafood Flavor 6-pack', category: 'Noodles', sku: 'NOODLE-005', matchType: 'alternative' },
+        { rank: 5, name: 'Calbee Honey Butter Chips Family Bag', category: 'Snacks', sku: null, matchType: 'none' },
+      ],
+    },
+    {
+      weeksAgo: 0,
+      items: [
+        { rank: 1, name: 'Dragonfly Brand Pandan Coconut Rice Mix', category: 'Rice & Grains', sku: 'RICE-004', matchType: 'alternative' },
+        { rank: 2, name: 'Pocky Chocolate Sticks 10-pack', category: 'Snacks', sku: 'SNACK-002', matchType: 'exact' },
+        { rank: 3, name: 'Vita Coconut Water 330ml 6-pack', category: 'Beverages', sku: 'BEV-001', matchType: 'exact' },
+        { rank: 4, name: 'Want Want Rice Crackers Family Pack', category: 'Snacks', sku: 'SNACK-003', matchType: 'exact' },
+        { rank: 5, name: 'Nissin Cup Noodles Seafood Flavor 6-pack', category: 'Noodles', sku: 'NOODLE-005', matchType: 'alternative' },
+      ],
+    },
+  ];
+
+  for (const snapshot of weeklyTopSellerSnapshots) {
+    const weekStart = getWeekStartStr(snapshot.weeksAgo);
+    for (const item of snapshot.items) {
+      await database.run(
+        `INSERT INTO weee_top_seller_weekly (week_start, weee_rank, weee_product_name, weee_category, matched_product_id, match_type)
+         VALUES (?, ?, ?, ?, ?, ?)`,
+        [weekStart, item.rank, item.name, item.category, item.sku ? skuToId[item.sku] || null : null, item.matchType]
+      );
+    }
+  }
+
+  // --- WEEKLY OUR-WEEE METRICS (mock 8-week sales + review sentiment) ---
+  const weeklyWeeeProfiles = [
+    { sku: 'SNACK-002', baseUnits: 318, weeklyLift: 9, weekNoise: 6, reviewVolume: 30, neutralBase: 4, negativeBase: 1 },
+    { sku: 'BEV-001', baseUnits: 142, weeklyLift: 6, weekNoise: 4, reviewVolume: 20, neutralBase: 4, negativeBase: 1 },
+    { sku: 'NOODLE-005', baseUnits: 206, weeklyLift: -4, weekNoise: 7, reviewVolume: 18, neutralBase: 5, negativeBase: 2 },
+    { sku: 'RICE-004', baseUnits: 30, weeklyLift: 4, weekNoise: 3, reviewVolume: 12, neutralBase: 3, negativeBase: 1 },
+    { sku: 'FROZEN-001', baseUnits: 126, weeklyLift: 2, weekNoise: 5, reviewVolume: 16, neutralBase: 3, negativeBase: 2 },
+    { sku: 'PANTRY-003', baseUnits: 108, weeklyLift: 3, weekNoise: 4, reviewVolume: 14, neutralBase: 3, negativeBase: 1 },
+    { sku: 'SNACK-003', baseUnits: 90, weeklyLift: 2, weekNoise: 3, reviewVolume: 11, neutralBase: 3, negativeBase: 1 },
+    { sku: 'SAUCE-005', baseUnits: 184, weeklyLift: 3, weekNoise: 6, reviewVolume: 19, neutralBase: 3, negativeBase: 1 },
+  ];
+
+  const reviewBaselines: Record<string, number> = {};
+  for (const p of products) {
+    if (p.weee) {
+      reviewBaselines[p.sku] = p.weeeReviews || 0;
+    }
+  }
+
+  const addedReviewsBySku: Record<string, number> = {};
+  const latestMetricsBySku: Record<string, { units: number; avgRating: number; totalReviewCount: number }> = {};
+  const weeks = Array.from({ length: 8 }, (_, idx) => 7 - idx); // oldest -> newest
+
+  for (const [weekIndex, weeksAgo] of weeks.entries()) {
+    const weekStart = getWeekStartStr(weeksAgo);
+
+    for (const profile of weeklyWeeeProfiles) {
+      const productId = skuToId[profile.sku];
+      if (!productId) continue;
+
+      const unitsSold = Math.max(
+        10,
+        Math.round(
+          profile.baseUnits +
+          (profile.weeklyLift * weekIndex) +
+          (((weekIndex % 3) - 1) * profile.weekNoise)
+        )
+      );
+      const unitPrice = productPrices[profile.sku] || 5;
+      const revenue = Math.round(unitsSold * unitPrice * 100) / 100;
+
+      const reviewCount = profile.reviewVolume + ((weekIndex % 3) === 0 ? 2 : 0);
+      const negativeSpike = profile.sku === 'NOODLE-005' && weekIndex >= 5 ? 3 : 0;
+      const neutral = profile.neutralBase + ((weekIndex % 2) === 0 ? 1 : 0);
+      const negative = profile.negativeBase + negativeSpike;
+      const positive = Math.max(0, reviewCount - neutral - negative);
+      const avgRating = Math.round((((positive * 5) + (neutral * 3) + (negative * 1)) / reviewCount) * 100) / 100;
+
+      await database.run(
+        `INSERT INTO weee_product_weekly_metrics
+          (week_start, product_id, units_sold, revenue, avg_rating, review_count, positive_reviews, neutral_reviews, negative_reviews)
+         VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)`,
+        [weekStart, productId, unitsSold, revenue, avgRating, reviewCount, positive, neutral, negative]
+      );
+
+      addedReviewsBySku[profile.sku] = (addedReviewsBySku[profile.sku] || 0) + reviewCount;
+      if (weeksAgo === 0) {
+        latestMetricsBySku[profile.sku] = {
+          units: unitsSold,
+          avgRating,
+          totalReviewCount: (reviewBaselines[profile.sku] || 0) + (addedReviewsBySku[profile.sku] || 0),
+        };
+      }
+    }
+  }
+
+  for (const [sku, latest] of Object.entries(latestMetricsBySku)) {
+    await database.run(
+      `UPDATE products
+       SET weee_weekly_sold = ?, weee_rating = ?, weee_review_count = ?
+       WHERE sku = ?`,
+      [latest.units, latest.avgRating, latest.totalReviewCount, sku]
+    );
+  }
+
   // --- PRODUCT PAIRINGS (cross-sell relationships) ---
   const pairings = [
     { a: 'SNACK-002', b: 'BEV-001', reason: 'Pocky and coconut water is a classic Asian convenience store combo — drives basket size at checkout displays' },
@@ -580,9 +874,12 @@ export async function seedData(database: Database): Promise<void> {
     // Instant Noodles
     { sku: 'NOODLE-005', reviewer: 'Tom W.', rating: 5, comment: 'Great variety pack! Love having different flavors to choose from.', date: -1 },
     { sku: 'NOODLE-005', reviewer: 'Sophia L.', rating: 4, comment: 'Good instant noodles. Wish they had a spicier option.', date: -5 },
+    { sku: 'NOODLE-005', reviewer: 'Irene P.', rating: 2, comment: 'One packet arrived crushed and seasoning leaked in the box.', date: -2 },
+    { sku: 'NOODLE-005', reviewer: 'Daniel C.', rating: 2, comment: 'Flavor variety is okay, but too salty for my family.', date: -6 },
     // Gyoza
     { sku: 'FROZEN-001', reviewer: 'Mark T.', rating: 5, comment: 'Restaurant quality gyoza at home! The filling is so juicy.', date: -2 },
     { sku: 'FROZEN-001', reviewer: 'Diana F.', rating: 5, comment: 'Easy to cook, tastes amazing. My kids ask for these every week.', date: -4 },
+    { sku: 'FROZEN-001', reviewer: 'Maya L.', rating: 1, comment: 'Half the bag had freezer burn and wrappers were broken.', date: -7 },
     // Sesame Oil
     { sku: 'PANTRY-007', reviewer: 'Chef Andy', rating: 5, comment: 'Pure sesame oil with deep, nutty flavor. A little goes a long way.', date: -3 },
     { sku: 'PANTRY-007', reviewer: 'Linda Y.', rating: 5, comment: 'This is my go-to sesame oil. Authentic taste.', date: -8 },
@@ -592,6 +889,7 @@ export async function seedData(database: Database): Promise<void> {
     // Bubble Tea Kit
     { sku: 'BEV-003', reviewer: 'Emily Z.', rating: 5, comment: 'So fun to make bubble tea at home! Tapioca pearls are perfect.', date: -3 },
     { sku: 'BEV-003', reviewer: 'Alex N.', rating: 4, comment: 'Good kit but wish it came with more tapioca pearls.', date: -9 },
+    { sku: 'BEV-003', reviewer: 'Ken J.', rating: 2, comment: 'Pearls were stale in my box and took too long to cook.', date: -4 },
   ];
 
   for (const r of reviews) {

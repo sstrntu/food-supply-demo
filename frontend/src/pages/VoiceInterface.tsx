@@ -1,5 +1,5 @@
-import { FC, useEffect, useState, useCallback, useRef } from 'react';
-import { Package, AlertTriangle, TrendingUp, Mic, Send, ShoppingBag } from 'lucide-react';
+import { FC, useEffect, useState, useCallback } from 'react';
+import { Package, AlertTriangle, TrendingUp, Mic, ShoppingBag } from 'lucide-react';
 import { API_URL, ELEVENLABS_AGENT_ID } from '../config';
 import './VoiceInterface.css';
 
@@ -7,12 +7,6 @@ interface DashboardStats {
   totalProducts: number;
   totalInventoryValue: number;
   lowStockCount: number;
-}
-
-interface Message {
-  type: 'user' | 'ai';
-  text: string;
-  timestamp: Date;
 }
 
 const VoiceInterface: FC = () => {
@@ -23,13 +17,6 @@ const VoiceInterface: FC = () => {
   });
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState('');
-
-  // Chat state
-  const [messages, setMessages] = useState<Message[]>([]);
-  const [inputText, setInputText] = useState('');
-  const [isConnected, setIsConnected] = useState(false);
-  const wsRef = useRef<WebSocket | null>(null);
-  const messagesEndRef = useRef<HTMLDivElement>(null);
 
   const fetchStats = useCallback(async () => {
     try {
@@ -53,62 +40,13 @@ const VoiceInterface: FC = () => {
     fetchStats();
   }, [fetchStats]);
 
-  // WebSocket connection for text chat
-  useEffect(() => {
-    const wsProtocol = window.location.protocol === 'https:' ? 'wss' : 'ws';
-    const wsUrl = `${wsProtocol}://${window.location.host}/ws/voice`;
-    const ws = new WebSocket(wsUrl);
-
-    ws.onopen = () => {
-      setIsConnected(true);
-      setMessages(prev => [...prev, {
-        type: 'ai',
-        text: "Connected! I'm your U.S. Trading sales assistant. Ask about hot items, top sellers, back-in-stock alerts, or inventory.",
-        timestamp: new Date()
-      }]);
-    };
-
-    ws.onmessage = (event) => {
-      try {
-        const data = JSON.parse(event.data);
-        if (data.type === 'response' || data.type === 'connected') {
-          setMessages(prev => [...prev, {
-            type: 'ai',
-            text: data.text || data.message,
-            timestamp: new Date()
-          }]);
-        }
-      } catch (e) {
-        console.error('WebSocket message error:', e);
-      }
-    };
-
-    ws.onerror = () => { setIsConnected(false); };
-    ws.onclose = () => { setIsConnected(false); };
-    wsRef.current = ws;
-
-    return () => { ws.close(); };
-  }, []);
-
-  useEffect(() => {
-    messagesEndRef.current?.scrollIntoView({ behavior: 'smooth' });
-  }, [messages]);
-
-  const sendMessage = () => {
-    if (!inputText.trim() || !wsRef.current) return;
-    setMessages(prev => [...prev, { type: 'user', text: inputText, timestamp: new Date() }]);
-    wsRef.current.send(JSON.stringify({ type: 'text', text: inputText }));
-    setInputText('');
-  };
-
-  const handleKeyPress = (e: React.KeyboardEvent) => {
-    if (e.key === 'Enter') sendMessage();
-  };
-
   // ElevenLabs client tools
   const [elevenlabsStatus, setElevenlabsStatus] = useState<'connecting' | 'connected' | 'error'>('connecting');
 
   useEffect(() => {
+    const widgetEl = document.querySelector('elevenlabs-convai');
+    const eventTarget: EventTarget = widgetEl || document;
+
     const checkWidgetConnection = () => {
       const widget = document.querySelector('elevenlabs-convai');
       if (widget?.shadowRoot) {
@@ -119,13 +57,13 @@ const VoiceInterface: FC = () => {
 
     const handleWidgetReady = () => { setElevenlabsStatus('connected'); };
     const handleWidgetError = () => { setElevenlabsStatus('error'); };
-    document.addEventListener('elevenlabs-convai:ready', handleWidgetReady);
-    document.addEventListener('elevenlabs-convai:error', handleWidgetError);
+    eventTarget.addEventListener('elevenlabs-convai:ready', handleWidgetReady);
+    eventTarget.addEventListener('elevenlabs-convai:error', handleWidgetError);
 
     const handleCall = (event: Event) => {
       const customEvent = event as CustomEvent;
       const token = localStorage.getItem('token');
-      const headers = { 'Authorization': `Bearer ${token}` };
+      const headers = token ? { 'Authorization': `Bearer ${token}` } : {};
 
       const fetchTopSkus = async (
         params: { territory?: string; region?: string; area?: string; days?: number; limit?: number } = {}
@@ -144,6 +82,16 @@ const VoiceInterface: FC = () => {
           ).join('. ');
           return `Top SKUs in ${territory} over the last ${days} days: ${topThree}.`;
         } catch { return 'Sorry, could not fetch top SKUs.'; }
+      };
+
+      const fetchWeeeVsChannels = async () => {
+        try {
+          const res = await fetch(`${API_URL}/api/dashboard/weee-vs-channels`, { headers });
+          if (!res.ok) return null;
+          return await res.json();
+        } catch {
+          return null;
+        }
       };
 
       const actions: Record<string, (params?: any) => Promise<string>> = {
@@ -190,7 +138,7 @@ const VoiceInterface: FC = () => {
             const items = data.hot_items.slice(0, 5).map((h: any) =>
               `Number ${h.rank}: ${h.weee_product_name} (${h.match_type || 'unknown match'})`
             ).join(', ');
-            return `Today's top ${data.hot_items.length} hot items on Weee are: ${items}.`;
+            return `Today's top ${data.hot_items.length} hot items on Weee (Sayweee) are: ${items}.`;
           } catch { return 'Sorry, could not fetch hot items.'; }
         },
 
@@ -239,7 +187,7 @@ const VoiceInterface: FC = () => {
             const res = await fetch(`${API_URL}/api/hot-items/today`, { headers });
             const data = await res.json();
             const pitches = [...new Set(data.hot_items.map((h: any) => h.universal_pitch).filter(Boolean))] as string[];
-            return data.summary_pitch || pitches[0] || 'Focus on trending Asian staples — coconut-based and snack items are surging on Weee right now.';
+            return data.summary_pitch || pitches[0] || 'Focus on trending Asian staples — coconut-based and snack items are surging on Weee and Sayweee right now.';
           } catch { return 'Sorry, could not fetch the pitch.'; }
         },
 
@@ -296,20 +244,47 @@ const VoiceInterface: FC = () => {
             const data = await res.json();
             const topRated = (data.top_rated || []).slice(0, 2).map((p: any) => p.name).join(', ');
             const topSelling = (data.top_selling || []).slice(0, 2).map((p: any) => p.name).join(', ');
-            return `Weee trends — top rated: ${topRated || 'none'}. Top selling: ${topSelling || 'none'}.`;
+            return `Weee (Sayweee) trends — top rated: ${topRated || 'none'}. Top selling: ${topSelling || 'none'}.`;
           } catch { return 'Sorry, could not fetch Weee reviews.'; }
         },
 
         // Weee performance
         get_weee_performance: async () => {
           try {
+            const insight = await fetchWeeeVsChannels();
+            if (insight) {
+              const rising = (insight.trend_tracking?.rising_signals || []).slice(0, 2).map((s: any) =>
+                `${s.weee_product_name} (${s.rank_change_4w > 0 ? '+' : ''}${s.rank_change_4w} rank in 4 weeks)`
+              ).join(', ');
+              const watchlist = (insight.our_weee_performance?.quality_watchlist || []).slice(0, 2).map((q: any) =>
+                `${q.name} (${q.negative_review_share_pct}% negative)`
+              ).join(', ');
+              const opps = (insight.opportunities || []).slice(0, 2).map((o: any) =>
+                `${o.our_product_name}: ${o.suggested_action}`
+              ).join(', ');
+              return `Weee (Sayweee) benchmark uses observed top-seller trends for ${insight.trend_tracking?.weeks_tracked || 0} weeks, not competitor sales volume. This week we mapped ${insight.hot_item_coverage.coverage_pct}% of observed trends to our catalog. Our own Weee listings sold ${insight.our_weee_performance?.units_sold_week || 0} units (${insight.our_weee_performance?.units_wow_pct || 0}% WoW) with ${insight.our_weee_performance?.sentiment?.negative_pct || 0}% negative review share. Rising signals: ${rising || 'none'}. Priority actions: ${opps || 'none yet'}.${watchlist ? ` Quality watchlist: ${watchlist}.` : ''}`;
+            }
+
             const res = await fetch(`${API_URL}/api/weee/our-listings`, { headers });
             const data = await res.json();
             const top = data.listings.slice(0, 5).map((p: any) =>
               `${p.name}: ${p.weee_weekly_sold} sold, ${p.weee_rating} stars`
             ).join(', ');
-            return `We have ${data.stats.total_listings} products on Weee. Average rating: ${data.stats.avg_rating}. Total weekly sales: ${data.stats.total_weekly_sold}. Top sellers: ${top}.`;
+            return `We have ${data.stats.total_listings} products on Weee (Sayweee). Average rating: ${data.stats.avg_rating}. Total weekly sales: ${data.stats.total_weekly_sold}. Top sellers: ${top}.`;
           } catch { return 'Sorry, could not fetch Weee performance.'; }
+        },
+
+        // Weee/Sayweee + channel opportunity insight
+        get_weee_channel_opportunities: async () => {
+          try {
+            const insight = await fetchWeeeVsChannels();
+            if (!insight) return 'Sorry, could not fetch Weee channel opportunities.';
+            const uncovered = (insight.uncovered_hot_items || []).slice(0, 2).map((i: any) => i.weee_product_name).join(', ');
+            const opps = (insight.opportunities || []).slice(0, 3).map((o: any) =>
+              `${o.our_product_name}: ${o.suggested_action} (${o.trend_presence_weeks}/${insight.trend_tracking?.weeks_tracked || 0} weeks observed)`
+            ).join(' | ');
+            return `Weee vs channels opportunity view: ${insight.hot_item_coverage.coverage_pct}% trend coverage, ${insight.hot_item_coverage.stock_ready_pct}% stock-ready mapped trends, and ${insight.hot_item_coverage.unmatched_hot_items} uncovered observed trends this week. Uncovered trends: ${uncovered || 'none'}. Priority actions: ${opps || 'none'}.`;
+          } catch { return 'Sorry, could not fetch Weee channel opportunities.'; }
         },
       };
 
@@ -319,13 +294,13 @@ const VoiceInterface: FC = () => {
       }
     };
 
-    document.addEventListener('elevenlabs-convai:call', handleCall);
+    eventTarget.addEventListener('elevenlabs-convai:call', handleCall);
 
     return () => {
       clearTimeout(timer);
-      document.removeEventListener('elevenlabs-convai:call', handleCall);
-      document.removeEventListener('elevenlabs-convai:ready', handleWidgetReady);
-      document.removeEventListener('elevenlabs-convai:error', handleWidgetError);
+      eventTarget.removeEventListener('elevenlabs-convai:call', handleCall);
+      eventTarget.removeEventListener('elevenlabs-convai:ready', handleWidgetReady);
+      eventTarget.removeEventListener('elevenlabs-convai:error', handleWidgetError);
     };
   }, []);
 
@@ -388,35 +363,6 @@ const VoiceInterface: FC = () => {
           </div>
         )}
 
-        {/* Chat Section */}
-        <section className="chat-section">
-          <h3>
-            <Mic size={18} />
-            Text Chat {isConnected ? <span className="connected-dot"></span> : <span className="disconnected-dot"></span>}
-          </h3>
-          <div className="messages-list">
-            {messages.map((msg, idx) => (
-              <div key={idx} className={`message ${msg.type}`}>
-                <div className="message-bubble">{msg.text}</div>
-              </div>
-            ))}
-            <div ref={messagesEndRef} />
-          </div>
-          <div className="chat-input">
-            <input
-              type="text"
-              value={inputText}
-              onChange={(e) => setInputText(e.target.value)}
-              onKeyPress={handleKeyPress}
-              placeholder="Type a question..."
-              disabled={!isConnected}
-            />
-            <button onClick={sendMessage} disabled={!isConnected || !inputText.trim()}>
-              <Send size={18} />
-            </button>
-          </div>
-        </section>
-
         <section className="quick-questions">
           <h3>Try Asking</h3>
           <div className="question-list">
@@ -443,6 +389,9 @@ const VoiceInterface: FC = () => {
             </div>
             <div className="question-hint">
               &quot;How are we doing on Weee?&quot;
+            </div>
+            <div className="question-hint">
+              &quot;How are we doing on Sayweee vs our channels?&quot;
             </div>
           </div>
         </section>
