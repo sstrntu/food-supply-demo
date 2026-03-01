@@ -22,7 +22,7 @@ services:
 
   food-supply-frontend:
     build:
-      context: ./frontend
+      context: .
       dockerfile: Dockerfile.frontend
     container_name: food-supply-frontend
     ports:
@@ -33,8 +33,8 @@ services:
       - SSL_KEY_PATH=/app/ssl/key.pem
       - SSL_CERT_PATH=/app/ssl/cert.pem
     volumes:
-      - ./ssl/key.pem:/app/ssl/key.pem:ro
-      - ./ssl/cert.pem:/app/ssl/cert.pem:ro
+      - ./key.pem:/app/ssl/key.pem:ro
+      - ./cert.pem:/app/ssl/cert.pem:ro
     restart: unless-stopped
     depends_on:
       - food-supply-api

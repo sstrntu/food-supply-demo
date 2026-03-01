@@ -1,24 +1,13 @@
 # Backend-only production image
+# Uses pre-built artifacts from host (avoids network issues in build environment)
 
-# Stage 1: Build backend
-FROM node:20-alpine AS backend-build
-WORKDIR /app/backend
-COPY backend/package*.json ./
-RUN npm ci
-COPY backend/ ./
-RUN npm run build
-
-# Stage 2: Production runtime
-FROM node:20-alpine AS production
+FROM node:20-slim
 WORKDIR /app
 
-# Install dependencies for sqlite3
-RUN apk add --no-cache python3 make g++
-
-# Copy backend
-COPY --from=backend-build /app/backend/dist ./backend/dist
-COPY --from=backend-build /app/backend/package*.json ./backend/
-COPY --from=backend-build /app/backend/node_modules ./backend/node_modules
+# Copy pre-built backend
+COPY backend/dist ./backend/dist
+COPY backend/package*.json ./backend/
+COPY backend/node_modules ./backend/node_modules
 
 # Create database directory
 RUN mkdir -p database
@@ -26,4 +15,4 @@ RUN mkdir -p database
 EXPOSE 3001
 
 # Start backend API
-CMD ["sh", "-c", "cd /app/backend && node dist/index.js"]
+CMD ["node", "/app/backend/dist/index.js"]

@@ -204,30 +204,34 @@ export async function initDb(): Promise<Database<sqlite3.Database, sqlite3.State
     );
 
     -- Indexes
-    CREATE INDEX idx_products_category ON products(category);
-    CREATE INDEX idx_products_weee ON products(weee_listed);
-    CREATE INDEX idx_inventory_product ON inventory(product_id);
-    CREATE INDEX idx_inventory_warehouse ON inventory(warehouse_id);
-    CREATE INDEX idx_customers_territory ON customers(territory);
-    CREATE INDEX idx_customers_manager ON customers(account_manager);
-    CREATE INDEX idx_invoices_customer ON invoices(customer_id);
-    CREATE INDEX idx_invoices_due_date ON invoices(due_date);
-    CREATE INDEX idx_invoices_status ON invoices(status);
-    CREATE INDEX idx_sales_history_customer ON sales_history(customer_id);
-    CREATE INDEX idx_sales_history_product ON sales_history(product_id);
-    CREATE INDEX idx_sales_history_date ON sales_history(sale_date);
-    CREATE INDEX idx_hot_items_date ON hot_items(weee_date);
-    CREATE INDEX idx_weee_weekly_trends_week ON weee_top_seller_weekly(week_start);
-    CREATE INDEX idx_weee_weekly_trends_product ON weee_top_seller_weekly(matched_product_id);
-    CREATE INDEX idx_weee_product_weekly_week ON weee_product_weekly_metrics(week_start);
-    CREATE INDEX idx_weee_product_weekly_product ON weee_product_weekly_metrics(product_id);
-    CREATE INDEX idx_weee_reviews_product ON weee_reviews(product_id);
+    CREATE INDEX IF NOT EXISTS idx_products_category ON products(category);
+    CREATE INDEX IF NOT EXISTS idx_products_weee ON products(weee_listed);
+    CREATE INDEX IF NOT EXISTS idx_inventory_product ON inventory(product_id);
+    CREATE INDEX IF NOT EXISTS idx_inventory_warehouse ON inventory(warehouse_id);
+    CREATE INDEX IF NOT EXISTS idx_customers_territory ON customers(territory);
+    CREATE INDEX IF NOT EXISTS idx_customers_manager ON customers(account_manager);
+    CREATE INDEX IF NOT EXISTS idx_invoices_customer ON invoices(customer_id);
+    CREATE INDEX IF NOT EXISTS idx_invoices_due_date ON invoices(due_date);
+    CREATE INDEX IF NOT EXISTS idx_invoices_status ON invoices(status);
+    CREATE INDEX IF NOT EXISTS idx_sales_history_customer ON sales_history(customer_id);
+    CREATE INDEX IF NOT EXISTS idx_sales_history_product ON sales_history(product_id);
+    CREATE INDEX IF NOT EXISTS idx_sales_history_date ON sales_history(sale_date);
+    CREATE INDEX IF NOT EXISTS idx_hot_items_date ON hot_items(weee_date);
+    CREATE INDEX IF NOT EXISTS idx_weee_weekly_trends_week ON weee_top_seller_weekly(week_start);
+    CREATE INDEX IF NOT EXISTS idx_weee_weekly_trends_product ON weee_top_seller_weekly(matched_product_id);
+    CREATE INDEX IF NOT EXISTS idx_weee_product_weekly_week ON weee_product_weekly_metrics(week_start);
+    CREATE INDEX IF NOT EXISTS idx_weee_product_weekly_product ON weee_product_weekly_metrics(product_id);
+    CREATE INDEX IF NOT EXISTS idx_weee_reviews_product ON weee_reviews(product_id);
   `);
 
   return database;
 }
 
 export async function seedData(database: Database): Promise<void> {
+  // Skip seeding if data already exists
+  const existing = await database.get('SELECT COUNT(*) as count FROM warehouses');
+  if (existing && existing.count > 0) return;
+
   // --- WAREHOUSES (US locations) ---
   await database.run(`INSERT INTO warehouses (name, location) VALUES (?, ?)`, ['Main Warehouse', 'Chicago, IL']);
   await database.run(`INSERT INTO warehouses (name, location) VALUES (?, ?)`, ['Cold Storage West', 'Los Angeles, CA']);

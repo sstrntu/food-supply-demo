@@ -1,24 +1,22 @@
 # Frontend Dockerfile - Production Build
+# Uses pre-built artifacts and host node_modules
 
-FROM node:20-alpine
+FROM node:20-slim
 
 WORKDIR /app
 
-# Copy package files
-COPY package*.json ./
+# Copy pre-built frontend dist, server files, and node_modules from host
+COPY frontend/dist ./dist
+COPY frontend/server-https.cjs ./server-https.cjs
+COPY frontend/server.cjs ./server.cjs
+COPY frontend/node_modules ./node_modules
+COPY frontend/package*.json ./
 
-# Install dependencies
-RUN npm ci --only=production
+# Create ssl directory for cert volume mounts
+RUN mkdir -p /app/ssl
 
-# Copy application files
-COPY . .
+# Expose HTTPS port
+EXPOSE 8443
 
-# Expose ports
-EXPOSE 80 8443
-
-# Health check
-HEALTHCHECK --interval=30s --timeout=3s --start-period=5s --retries=3 \
-  CMD wget --no-verbose --tries=1 --spider http://localhost:80/ || exit 1
-
-# Start server
-CMD ["node", "server.js"]
+# Start HTTPS server
+CMD ["node", "server-https.cjs"]
