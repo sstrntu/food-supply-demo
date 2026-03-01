@@ -268,7 +268,7 @@ const Dashboard: FC = () => {
   const [activities, setActivities] = useState<Activity[]>([]);
   const [hotItems, setHotItems] = useState<HotItemsResponse | null>(null);
   const [backInStock, setBackInStock] = useState<BackInStockAlert[]>([]);
-  const [expandedTalkingPoint, setExpandedTalkingPoint] = useState<number | null>(null);
+  const [collapsedTalkingPoints, setCollapsedTalkingPoints] = useState<Set<number>>(new Set());
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState('');
 
@@ -417,22 +417,22 @@ const Dashboard: FC = () => {
               <ShoppingBag size={20} />
               Weee (Sayweee) vs Our Sales Channels
             </h2>
-            <span className="badge badge-fire">{weeeChannelInsight.hot_item_coverage.coverage_pct}% hot-item coverage</span>
+            <span className="badge badge-fire">{weeeChannelInsight.hot_item_coverage.coverage_pct}% trend match rate</span>
           </div>
           <div className="card-body">
             <div className="weee-vs-metrics">
               <div className="weee-vs-metric">
-                <span className="weee-vs-label">Our Weee Units (Week)</span>
+                <span className="weee-vs-label">Our Weee Sales (This Week)</span>
                 <strong>{weeeChannelInsight.our_weee_performance.units_sold_week}</strong>
                 <div className="weee-vs-subtext">{formatSignedPct(weeeChannelInsight.our_weee_performance.units_wow_pct)} vs prior week</div>
               </div>
               <div className="weee-vs-metric">
-                <span className="weee-vs-label">Our Weee Revenue (Week)</span>
+                <span className="weee-vs-label">Our Weee Revenue (This Week)</span>
                 <strong>{formatCurrency(weeeChannelInsight.our_weee_performance.revenue_week)}</strong>
                 <div className="weee-vs-subtext">{formatSignedPct(weeeChannelInsight.our_weee_performance.revenue_wow_pct)} vs prior week</div>
               </div>
               <div className="weee-vs-metric">
-                <span className="weee-vs-label">Avg Rating (Week)</span>
+                <span className="weee-vs-label">Customer Rating (This Week)</span>
                 <strong>{weeeChannelInsight.our_weee_performance.avg_rating_week.toFixed(2)}</strong>
                 <div className="weee-vs-subtext">
                   {weeeChannelInsight.our_weee_performance.rating_wow_delta > 0 ? '+' : ''}
@@ -440,7 +440,7 @@ const Dashboard: FC = () => {
                 </div>
               </div>
               <div className="weee-vs-metric">
-                <span className="weee-vs-label">Negative Review Share</span>
+                <span className="weee-vs-label">Complaint Rate</span>
                 <strong>{weeeChannelInsight.our_weee_performance.sentiment.negative_pct}%</strong>
                 <div className="weee-vs-subtext">{weeeChannelInsight.our_weee_performance.sentiment.negative_reviews} negative reviews this week</div>
               </div>
@@ -468,14 +468,14 @@ const Dashboard: FC = () => {
 
             {weeeChannelInsight.trend_tracking.rising_signals.length > 0 && (
               <div className="weee-opportunities">
-                <h3>Rising Weee Signals (4-week rank movement)</h3>
+                <h3>Gaining Popularity on Weee</h3>
                 {weeeChannelInsight.trend_tracking.rising_signals.slice(0, 3).map((signal) => (
                   <div key={`${signal.weee_product_name}-${signal.current_rank}`} className="weee-opportunity-item">
                     <div className="weee-opportunity-title">
                       #{signal.current_rank || '-'} {signal.weee_product_name}
                     </div>
                     <div className="weee-opportunity-meta">
-                      {signal.weee_category} | Rank change (4w): {signal.rank_change_4w > 0 ? `+${signal.rank_change_4w}` : signal.rank_change_4w}
+                      {signal.weee_category} | Moved {signal.rank_change_4w > 0 ? `up ${signal.rank_change_4w}` : `down ${Math.abs(signal.rank_change_4w)}`} spots in 4 weeks
                     </div>
                   </div>
                 ))}
@@ -484,14 +484,14 @@ const Dashboard: FC = () => {
 
             {weeeChannelInsight.our_weee_performance.quality_watchlist.length > 0 && (
               <div className="weee-opportunities">
-                <h3>Our Weee Quality Watchlist</h3>
+                <h3>Products Getting Complaints on Weee</h3>
                 {weeeChannelInsight.our_weee_performance.quality_watchlist.map((item) => (
                   <div key={`${item.sku}-watchlist`} className="weee-opportunity-item">
                     <div className="weee-opportunity-title">
                       {item.name} ({item.sku})
                     </div>
                     <div className="weee-opportunity-meta">
-                      Avg rating: {item.avg_rating_week.toFixed(2)} | Negative share: {item.negative_review_share_pct}% | Units: {item.units_sold_week}
+                      Rating: {item.avg_rating_week.toFixed(2)} | {item.negative_review_share_pct}% negative reviews | {item.units_sold_week} units sold
                     </div>
                   </div>
                 ))}
@@ -500,7 +500,7 @@ const Dashboard: FC = () => {
 
             {weeeChannelInsight.opportunities.length > 0 && (
               <div className="weee-opportunities">
-                <h3>Best Items To Push This Week</h3>
+                <h3>Top Items to Sell This Week</h3>
                 {weeeChannelInsight.opportunities.slice(0, 3).map((item) => (
                   <div key={`${item.sku || item.our_product_name}-${item.trend_rank}`} className="weee-opportunity-item">
                     <div className="weee-opportunity-title">
@@ -511,31 +511,31 @@ const Dashboard: FC = () => {
                     </div>
 
                     <div className="weee-opportunity-summary">
-                      Why it matters: Seen in {item.trend_presence_weeks} of the last {weeeChannelInsight.trend_tracking.weeks_tracked} weeks
+                      Trending for {item.trend_presence_weeks} of the last {weeeChannelInsight.trend_tracking.weeks_tracked} weeks
                       {item.rank_change_4w > 0 ? ` and moving up (+${item.rank_change_4w} in 4 weeks)` : ''}
                       {item.rank_change_4w < 0 ? ` and cooling down (${item.rank_change_4w} in 4 weeks)` : ''}.
                     </div>
 
                     <div className="weee-opportunity-summary">
-                      Sales gap: {item.our_30d_units === 0
-                        ? 'No sales in our other channels in the last 30 days.'
-                        : `${item.our_30d_units} units sold in our other channels in the last 30 days.`}
+                      {item.our_30d_units === 0
+                        ? 'No sales through our own channels in the last 30 days.'
+                        : `We sold ${item.our_30d_units} units through our own channels in 30 days.`}
                       {' '}
                       {item.account_reach_30d <= 2
-                        ? `Only ${item.account_reach_30d} account${item.account_reach_30d === 1 ? '' : 's'} reached so far.`
-                        : `${item.account_reach_30d} accounts reached.`}
+                        ? `Only ${item.account_reach_30d} customer${item.account_reach_30d === 1 ? '' : 's'} bought this so far.`
+                        : `${item.account_reach_30d} customers bought this.`}
                     </div>
 
                     <div className="weee-opportunity-summary">
                       On Weee this week: {item.weee_units_week} units ({formatSignedPct(item.weee_units_wow_pct)} vs last week).
                       {' '}
-                      Review risk: {item.negative_review_share_pct}% negative.
+                      Customer complaints: {item.negative_review_share_pct}% negative reviews.
                       {' '}
                       Stock: {item.stock_status === 'ready' ? 'Ready to sell' : 'Restock needed'}.
                     </div>
 
                     <div className="weee-opportunity-action">
-                      <strong>Rep action:</strong> {item.suggested_action}
+                      <strong>What to do:</strong> {item.suggested_action}
                     </div>
                   </div>
                 ))}
@@ -586,7 +586,7 @@ const Dashboard: FC = () => {
                         Cross-sell: {item.cross_sell.product_name} — {item.cross_sell.reason}
                       </div>
                     )}
-                    {expandedTalkingPoint === item.rank && item.talking_point && (
+                    {item.talking_point && !collapsedTalkingPoints.has(item.rank) && (
                       <div className="hot-item-talking-point">
                         {item.talking_point}
                       </div>
@@ -600,11 +600,14 @@ const Dashboard: FC = () => {
                     {item.talking_point && (
                       <button
                         className="talking-point-btn"
-                        onClick={() => setExpandedTalkingPoint(
-                          expandedTalkingPoint === item.rank ? null : item.rank
-                        )}
+                        onClick={() => {
+                          const next = new Set(collapsedTalkingPoints);
+                          if (next.has(item.rank)) next.delete(item.rank);
+                          else next.add(item.rank);
+                          setCollapsedTalkingPoints(next);
+                        }}
                       >
-                        {expandedTalkingPoint === item.rank ? 'Hide' : 'Talking Point'}
+                        {collapsedTalkingPoints.has(item.rank) ? 'Show Script' : 'Hide Script'}
                       </button>
                     )}
                   </div>
