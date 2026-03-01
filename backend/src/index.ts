@@ -15,6 +15,7 @@ import hotItemsRoutes from './routes/hot-items';
 import salesRoutes from './routes/sales';
 import customerRoutes from './routes/customers';
 import weeeRoutes from './routes/weee';
+import aiInsightsRoutes from './routes/ai-insights';
 
 // Import services
 import elevenlabsService from './services/elevenlabs';
@@ -56,6 +57,7 @@ async function startServer(): Promise<void> {
     app.use('/api/sales', salesRoutes);
     app.use('/api/customers', customerRoutes);
     app.use('/api/weee', weeeRoutes);
+    app.use('/api/dashboard/ai-insights', aiInsightsRoutes);
     
     // Health check
     app.get('/health', async (_req: Request, res: Response) => {

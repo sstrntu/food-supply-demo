@@ -2,8 +2,9 @@ import dotenv from 'dotenv';
 import path from 'path';
 import fs from 'fs';
 
-// Load environment variables
+// Load environment variables (check both backend/ and project root)
 dotenv.config();
+dotenv.config({ path: path.resolve(__dirname, '../../.env') });
 
 // Server configuration
 export const PORT = parseInt(process.env.PORT || '3001', 10);
@@ -25,6 +26,9 @@ export const TEST_USER = {
 // ElevenLabs
 export const ELEVENLABS_API_KEY = process.env.ELEVENLABS_API_KEY || '';
 export const ELEVENLABS_AGENT_ID = process.env.ELEVENLABS_AGENT_ID || 'agent_7901khz299zdfvcbhtk3c08vcps8';
+
+// Anthropic (Claude AI)
+export const ANTHROPIC_API_KEY = process.env.ANTHROPIC_API_KEY || '';
 
 // CORS origins
 export const CORS_ORIGINS = (process.env.CORS_ORIGINS || 'https://localhost:8443,https://139.59.102.60:8443')

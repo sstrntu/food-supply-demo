@@ -269,6 +269,8 @@ const Dashboard: FC = () => {
   const [hotItems, setHotItems] = useState<HotItemsResponse | null>(null);
   const [backInStock, setBackInStock] = useState<BackInStockAlert[]>([]);
   const [collapsedTalkingPoints, setCollapsedTalkingPoints] = useState<Set<number>>(new Set());
+  const [aiInsights, setAiInsights] = useState<{ label: string; detail: string; type: string }[]>([]);
+  const [hotItemScripts, setHotItemScripts] = useState<{ rank: number; whatToDo: string; crossSell: string; script: string }[]>([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState('');
 
@@ -281,7 +283,7 @@ const Dashboard: FC = () => {
       const token = localStorage.getItem('token');
       const headers = { 'Authorization': `Bearer ${token}` };
 
-      const [statsRes, alertsRes, activityRes, salesRes, hotItemsRes, bisRes, weeeInsightRes, invoiceRes] = await Promise.all([
+      const [statsRes, alertsRes, activityRes, salesRes, hotItemsRes, bisRes, weeeInsightRes, invoiceRes, aiRes] = await Promise.all([
         fetch(`${API_URL}/api/dashboard/stats`, { headers }),
         fetch(`${API_URL}/api/dashboard/alerts`, { headers }),
         fetch(`${API_URL}/api/dashboard/activity?limit=5`, { headers }),
@@ -290,9 +292,10 @@ const Dashboard: FC = () => {
         fetch(`${API_URL}/api/sales/back-in-stock-alerts`, { headers }),
         fetch(`${API_URL}/api/dashboard/weee-vs-channels`, { headers }),
         fetch(`${API_URL}/api/sales/invoices/overview?due_soon_days=7&limit=6`, { headers }),
+        fetch(`${API_URL}/api/dashboard/ai-insights`, { headers }),
       ]);
 
-      const [statsData, alertsData, activityData, salesData, hotItemsData, bisData, weeeInsightData, invoiceData] = await Promise.all([
+      const [statsData, alertsData, activityData, salesData, hotItemsData, bisData, weeeInsightData, invoiceData, aiData] = await Promise.all([
         statsRes.ok ? statsRes.json() : null,
         alertsRes.ok ? alertsRes.json() : [],
         activityRes.ok ? activityRes.json() : [],
@@ -301,6 +304,7 @@ const Dashboard: FC = () => {
         bisRes.ok ? bisRes.json() : { alerts: [] },
         weeeInsightRes.ok ? weeeInsightRes.json() : null,
         invoiceRes.ok ? invoiceRes.json() : null,
+        aiRes.ok ? aiRes.json() : { insights: [] },
       ]);
 
       setStats(statsData);
@@ -311,6 +315,8 @@ const Dashboard: FC = () => {
       setBackInStock(bisData.alerts || []);
       setWeeeChannelInsight(weeeInsightData);
       setInvoiceOverview(invoiceData);
+      setAiInsights(aiData.insights || []);
+      setHotItemScripts(aiData.hotItemScripts || []);
     } catch (err) {
       setError('Failed to load dashboard data');
     } finally {
@@ -357,6 +363,24 @@ const Dashboard: FC = () => {
         <div className="pitch-banner">
           <Flame size={18} />
           <span><strong>Today&apos;s Pitch:</strong> {hotItems.summary_pitch}</span>
+        </div>
+      )}
+
+      {/* AI Briefing */}
+      {aiInsights.length > 0 && (
+        <div className="dashboard-card ai-briefing-card">
+          <div className="card-header">
+            <h2><TrendingUp size={20} /> AI Briefing</h2>
+          </div>
+          <div className="card-body">
+            <ul className="ai-briefing-list">
+              {aiInsights.slice(0, 5).map((insight, i) => (
+                <li key={i} className={`ai-briefing-item type-${insight.type}`}>
+                  <strong>{insight.label}:</strong> {insight.detail}
+                </li>
+              ))}
+            </ul>
+          </div>
         </div>
       )}
 
@@ -565,7 +589,11 @@ const Dashboard: FC = () => {
           </div>
           <div className="card-body">
             <div className="hot-items-list">
-              {hotItems.hot_items.map((item) => (
+              {hotItems.hot_items.map((item) => {
+                const aiScript = hotItemScripts.find(s => s.rank === item.rank);
+                const scriptText = aiScript?.script || item.talking_point;
+                const crossSellText = aiScript?.crossSell || item.cross_sell?.reason;
+                return (
                 <div key={item.rank} className="hot-item-row">
                   <div className="hot-item-rank">#{item.rank}</div>
                   <div className="hot-item-info">
@@ -581,14 +609,19 @@ const Dashboard: FC = () => {
                         )}
                       </div>
                     )}
-                    {item.cross_sell && (
-                      <div className="hot-item-cross-sell">
-                        Cross-sell: {item.cross_sell.product_name} — {item.cross_sell.reason}
+                    {aiScript?.whatToDo && (
+                      <div className="hot-item-what-to-do">
+                        <strong>What to do:</strong> {aiScript.whatToDo}
                       </div>
                     )}
-                    {item.talking_point && !collapsedTalkingPoints.has(item.rank) && (
+                    {item.cross_sell && crossSellText && (
+                      <div className="hot-item-cross-sell">
+                        Cross-sell: {item.cross_sell.product_name} — {crossSellText}
+                      </div>
+                    )}
+                    {scriptText && !collapsedTalkingPoints.has(item.rank) && (
                       <div className="hot-item-talking-point">
-                        {item.talking_point}
+                        {scriptText}
                       </div>
                     )}
                   </div>
@@ -597,7 +630,7 @@ const Dashboard: FC = () => {
                       {item.match_type === 'exact' ? 'Exact Match' :
                        item.match_type === 'alternative' ? 'Alternative' : 'No Match'}
                     </span>
-                    {item.talking_point && (
+                    {scriptText && (
                       <button
                         className="talking-point-btn"
                         onClick={() => {
@@ -612,7 +645,8 @@ const Dashboard: FC = () => {
                     )}
                   </div>
                 </div>
-              ))}
+                );
+              })}
             </div>
           </div>
         </div>

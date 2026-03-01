@@ -29,23 +29,14 @@ const VoiceInterface: FC = () => {
       const token = localStorage.getItem('token');
       const headers = { 'Authorization': `Bearer ${token}` };
 
-      const [statsRes, salesRes, alertsRes, hotRes, weeeRes, invoiceRes, bisRes] = await Promise.all([
+      const [statsRes, salesRes, aiRes] = await Promise.all([
         fetch(`${API_URL}/api/dashboard/stats`, { headers }),
         fetch(`${API_URL}/api/dashboard/sales-summary`, { headers }),
-        fetch(`${API_URL}/api/dashboard/alerts`, { headers }),
-        fetch(`${API_URL}/api/hot-items/today`, { headers }),
-        fetch(`${API_URL}/api/dashboard/weee-vs-channels`, { headers }),
-        fetch(`${API_URL}/api/sales/invoices/overview?due_soon_days=7&limit=3`, { headers }),
-        fetch(`${API_URL}/api/sales/back-in-stock-alerts`, { headers }),
+        fetch(`${API_URL}/api/dashboard/ai-insights`, { headers }),
       ]);
 
       const statsData = statsRes.ok ? await statsRes.json() : {};
       const salesData = salesRes.ok ? await salesRes.json() : {};
-      const alertsData = alertsRes.ok ? await alertsRes.json() : [];
-      const hotData = hotRes.ok ? await hotRes.json() : {};
-      const weeeData = weeeRes.ok ? await weeeRes.json() : null;
-      const invoiceData = invoiceRes.ok ? await invoiceRes.json() : null;
-      const bisData = bisRes.ok ? await bisRes.json() : { alerts: [] };
 
       setInsights({
         revenue30d: salesData.total_revenue_30d || 0,
@@ -55,108 +46,21 @@ const VoiceInterface: FC = () => {
         backInStockAlerts: salesData.back_in_stock_alerts || 0,
       });
 
-      // Build key items bullets (most actionable first)
-      const items: ReactNode[] = [];
-      const fmtUSD = (v: number) => new Intl.NumberFormat('en-US', { style: 'currency', currency: 'USD', maximumFractionDigits: 0 }).format(v);
-
-      // Today's pitch
-      if (hotData.summary_pitch) {
-        items.push(<><strong>Today's pitch:</strong> {hotData.summary_pitch}</>);
-      }
-
-      // Revenue trend
-      const pct = salesData.revenue_change_pct || 0;
-      if (pct > 0) items.push(<><strong>Revenue up {pct}%</strong> vs prior 30 days</>);
-      else if (pct < 0) items.push(<><strong>Revenue down {Math.abs(pct)}%</strong> vs prior 30 days</>);
-
-      // Low stock names
-      if (alertsData.length > 0) {
-        const names = alertsData.slice(0, 3).map((a: any) => a.name);
-        items.push(<><strong>Low stock:</strong> {names.join(', ')}{alertsData.length > 3 ? ` +${alertsData.length - 3} more` : ''}</>);
-      }
-
-      // Back-in-stock with lost revenue
-      const bisAlerts = bisData.alerts || [];
-      if (bisAlerts.length > 0) {
-        const totalLostRevenue = bisAlerts.reduce((sum: number, a: any) =>
-          sum + a.affected_customers.reduce((s: number, c: any) => s + (c.estimated_lost_revenue || 0), 0), 0);
-        const highPriority = bisAlerts.reduce((count: number, a: any) =>
-          count + a.affected_customers.filter((c: any) => c.call_priority === 'high').length, 0);
-        items.push(<><strong>Back in stock:</strong> {bisAlerts.length} product{bisAlerts.length > 1 ? 's' : ''} — <strong>{fmtUSD(totalLostRevenue)}</strong> lost revenue to recover{highPriority > 0 ? <>, <strong>{highPriority} high-priority calls</strong></> : ''}</>);
-      }
-
-      // Hot items on Weee
-      const hotItems = hotData.hot_items || [];
-      if (hotItems.length > 0) {
-        const matched = hotItems.filter((h: any) => h.match_type && h.match_type !== 'none');
-        if (matched.length > 0) {
-          const topNames = matched.slice(0, 2).map((h: any) => h.our_product?.name || h.weee_product_name);
-          items.push(<><strong>Weee hot items:</strong> we carry {matched.length} — {topNames.join(', ')}</>);
+      // AI-generated key items
+      if (aiRes.ok) {
+        const aiData = await aiRes.json();
+        const aiInsights = aiData.insights || [];
+        if (aiInsights.length > 0) {
+          const items: ReactNode[] = aiInsights.map((insight: { label: string; detail: string }, i: number) => (
+            <span key={i}><strong>{insight.label}:</strong> {insight.detail}</span>
+          ));
+          setKeyItems(items);
         } else {
-          items.push(<><strong>Weee hot items:</strong> {hotItems.length} trending today</>);
+          setKeyItems([<span key="na"><strong>Insights:</strong> No data available right now</span>]);
         }
+      } else {
+        setKeyItems([<span key="err"><strong>Insights unavailable</strong> — check back in a moment</span>]);
       }
-
-      // New Weee signals this week
-      if (weeeData?.trend_tracking?.new_signals_this_week?.length > 0) {
-        const newItems = weeeData.trend_tracking.new_signals_this_week;
-        const matchedNew = newItems.filter((s: any) => s.match_type !== 'none');
-        if (matchedNew.length > 0) {
-          const names = matchedNew.slice(0, 2).map((s: any) => s.weee_product_name).join(', ');
-          items.push(<><strong>New on Weee:</strong> {names} — we carry {matchedNew.length === 1 ? 'it' : 'them'}</>);
-        } else {
-          const names = newItems.slice(0, 2).map((s: any) => s.weee_product_name).join(', ');
-          items.push(<><strong>New on Weee:</strong> {names}</>);
-        }
-      }
-
-      // Weee rising signals
-      if (weeeData?.trend_tracking?.rising_signals?.length > 0) {
-        const rising = weeeData.trend_tracking.rising_signals.slice(0, 2);
-        const names = rising.map((s: any) => s.weee_product_name).join(', ');
-        items.push(<><strong>Rising on Weee:</strong> {names}</>);
-      }
-
-      // Proven recurring trends
-      if (weeeData?.trend_tracking?.recurring_signals?.length > 0) {
-        const recurring = weeeData.trend_tracking.recurring_signals.slice(0, 2);
-        const names = recurring.map((s: any) => `${s.weee_product_name} (${s.weeks_seen} wks)`).join(', ');
-        items.push(<><strong>Proven sellers:</strong> {names}</>);
-      }
-
-      // Channel performance
-      if (weeeData?.channels) {
-        const { active_accounts_30d, units_30d } = weeeData.channels;
-        if (active_accounts_30d > 0) {
-          items.push(<><strong>Our channels:</strong> {active_accounts_30d} active accounts, {units_30d.toLocaleString()} units in 30 days</>);
-        }
-      }
-
-      // Weee best items to push
-      if (weeeData?.opportunities?.length > 0) {
-        const top = weeeData.opportunities[0];
-        items.push(<><strong>Top opportunity:</strong> push <em>{top.our_product_name}</em> — {top.suggested_action}</>);
-      }
-
-      // Weee quality watchlist
-      if (weeeData?.our_weee_performance?.quality_watchlist?.length > 0) {
-        const watchNames = weeeData.our_weee_performance.quality_watchlist
-          .slice(0, 2).map((q: any) => q.name).join(', ');
-        items.push(<><strong>Quality alert:</strong> {watchNames} — review feedback</>);
-      }
-
-      // Invoice overdue
-      if (invoiceData?.summary) {
-        const { overdue_count, overdue_balance, due_soon_count, due_soon_balance } = invoiceData.summary;
-        if (overdue_count > 0) {
-          items.push(<><strong>Overdue:</strong> {overdue_count} invoice{overdue_count > 1 ? 's' : ''} totaling <strong>{fmtUSD(overdue_balance)}</strong></>);
-        }
-        if (due_soon_count > 0) {
-          items.push(<><strong>Due soon:</strong> {due_soon_count} invoice{due_soon_count > 1 ? 's' : ''} within 7 days ({fmtUSD(due_soon_balance)})</>);
-        }
-      }
-
-      setKeyItems(items.slice(0, 10));
     } catch {
       setError('Failed to load stats');
     } finally {
