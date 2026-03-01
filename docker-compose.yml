@@ -18,18 +18,15 @@ services:
     volumes:
       - ./database:/app/database
     restart: unless-stopped
-    networks:
-      - food-supply-network
+    network_mode: host
 
   food-supply-frontend:
     build:
       context: .
       dockerfile: Dockerfile.frontend
     container_name: food-supply-frontend
-    ports:
-      - "8443:8443"
     environment:
-      - API_URL=http://food-supply-api:3001
+      - API_URL=http://localhost:3001
       - FRONTEND_HTTPS_PORT=8443
       - SSL_KEY_PATH=/app/ssl/key.pem
       - SSL_CERT_PATH=/app/ssl/cert.pem
@@ -39,9 +36,4 @@ services:
     restart: unless-stopped
     depends_on:
       - food-supply-api
-    networks:
-      - food-supply-network
-
-networks:
-  food-supply-network:
-    driver: bridge
+    network_mode: host
