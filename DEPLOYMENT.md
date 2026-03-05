@@ -45,7 +45,7 @@ Edit `.env` and set the required values:
 | `JWT_SECRET` | Secret key for JWT auth — use a strong random string | Yes |
 | `ELEVENLABS_API_KEY` | ElevenLabs API key for voice features | Yes |
 | `ELEVENLABS_AGENT_ID` | ElevenLabs agent ID (default provided) | No |
-| `ANTHROPIC_API_KEY` | Anthropic API key for AI dashboard insights | Yes |
+| `ANTHROPIC_API_KEY` | Anthropic API key for Claude (AI insights + ElevenLabs custom LLM endpoint) | Yes |
 | `CORS_ORIGINS` | Allowed CORS origins (e.g. `https://139.59.102.60:8443`) | Yes |
 
 ## 3. Generate SSL Certificates

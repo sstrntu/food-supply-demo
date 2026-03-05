@@ -62,7 +62,7 @@ export interface AiResponse {
 
 // In-memory cache (global, company-wide data)
 let cache: { data: AiResponse; timestamp: number } | null = null;
-const CACHE_TTL_MS = 5 * 60 * 1000; // 5 minutes
+const CACHE_TTL_MS = 60 * 60 * 1000; // 1 hour
 
 function getCached(): AiResponse | null {
   if (cache && Date.now() - cache.timestamp < CACHE_TTL_MS) {
@@ -138,7 +138,7 @@ export async function generateInsights(data: DashboardDataBundle): Promise<AiRes
   const client = new Anthropic({ apiKey: ANTHROPIC_API_KEY });
 
   const message = await client.messages.create({
-    model: 'claude-haiku-4-5-20251001',
+    model: 'claude-sonnet-4-6',
     max_tokens: 2048,
     messages: [{ role: 'user', content: buildPrompt(data) }],
   });

@@ -227,14 +227,17 @@ const VoiceInterface: FC = () => {
         get_top_skus: fetchTopSkus,
 
         // UC7: Category trends
-        get_category_trends: async (params: { customer_id?: number; days?: number } = {}) => {
+        get_category_trends: async (params: { customer_id?: number; customer_name?: string; days?: number } = {}) => {
           try {
-            const customerId = params.customer_id || 1;
             const days = params.days || 30;
-            const res = await fetch(
-              `${API_URL}/api/sales/category-trends?customer_id=${customerId}&days=${days}`,
-              { headers }
-            );
+            let url = `${API_URL}/api/sales/category-trends?days=${days}`;
+            if (params.customer_id) {
+              url += `&customer_id=${params.customer_id}`;
+            } else if (params.customer_name) {
+              url += `&customer_name=${encodeURIComponent(params.customer_name)}`;
+            }
+            // If neither provided, the backend will use the top revenue customer
+            const res = await fetch(url, { headers });
             const data = await res.json();
             const up = data.trending_up.slice(0, 2).map((c: any) => `${c.category} up ${Math.round(c.trend_pct)}%`).join(', ');
             const down = data.trending_down.slice(0, 1).map((c: any) => `${c.category} down ${Math.round(Math.abs(c.trend_pct))}%`).join(', ');
@@ -280,29 +283,24 @@ const VoiceInterface: FC = () => {
           } catch { return 'Sorry, could not fetch Weee reviews.'; }
         },
 
-        // Weee performance
+        // Weee performance (concise for voice)
         get_weee_performance: async () => {
           try {
             const insight = await fetchWeeeVsChannels();
             if (insight) {
-              const rising = (insight.trend_tracking?.rising_signals || []).slice(0, 2).map((s: any) =>
-                `${s.weee_product_name} (${s.rank_change_4w > 0 ? '+' : ''}${s.rank_change_4w} rank in 4 weeks)`
-              ).join(', ');
-              const watchlist = (insight.our_weee_performance?.quality_watchlist || []).slice(0, 2).map((q: any) =>
-                `${q.name} (${q.negative_review_share_pct}% negative)`
-              ).join(', ');
-              const opps = (insight.opportunities || []).slice(0, 2).map((o: any) =>
-                `${o.our_product_name}: ${o.suggested_action}`
-              ).join(', ');
-              return `Weee (Sayweee) benchmark uses observed top-seller trends for ${insight.trend_tracking?.weeks_tracked || 0} weeks, not competitor sales volume. This week we mapped ${insight.hot_item_coverage.coverage_pct}% of observed trends to our catalog. Our own Weee listings sold ${insight.our_weee_performance?.units_sold_week || 0} units (${insight.our_weee_performance?.units_wow_pct || 0}% WoW) with ${insight.our_weee_performance?.sentiment?.negative_pct || 0}% negative review share. Rising signals: ${rising || 'none'}. Priority actions: ${opps || 'none yet'}.${watchlist ? ` Quality watchlist: ${watchlist}.` : ''}`;
+              const units = insight.our_weee_performance?.units_sold_week || 0;
+              const wow = insight.our_weee_performance?.units_wow_pct || 0;
+              const coverage = insight.hot_item_coverage?.coverage_pct || 0;
+              const topOpp = (insight.opportunities || [])[0];
+              let response = `This week: ${units} units sold on Weee, ${wow > 0 ? 'up' : 'down'} ${Math.abs(wow)}% week over week. We match ${coverage}% of trending items.`;
+              if (topOpp) response += ` Top priority: ${topOpp.our_product_name} — ${topOpp.suggested_action}.`;
+              return response;
             }
 
             const res = await fetch(`${API_URL}/api/weee/our-listings`, { headers });
             const data = await res.json();
-            const top = data.listings.slice(0, 5).map((p: any) =>
-              `${p.name}: ${p.weee_weekly_sold} sold, ${p.weee_rating} stars`
-            ).join(', ');
-            return `We have ${data.stats.total_listings} products on Weee (Sayweee). Average rating: ${data.stats.avg_rating}. Total weekly sales: ${data.stats.total_weekly_sold}. Top sellers: ${top}.`;
+            const topSeller = data.listings[0];
+            return `We have ${data.stats.total_listings} products on Weee with a ${data.stats.avg_rating} average rating. Top seller: ${topSeller?.name || 'none'} at ${topSeller?.weee_weekly_sold || 0} units per week.`;
           } catch { return 'Sorry, could not fetch Weee performance.'; }
         },
 

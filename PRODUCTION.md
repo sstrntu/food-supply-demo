@@ -31,6 +31,7 @@ Key environment variables in `.env`:
 | `JWT_SECRET` | Secret for JWT tokens | (required) |
 | `ELEVENLABS_API_KEY` | ElevenLabs API key | (optional) |
 | `ELEVENLABS_AGENT_ID` | ElevenLabs agent ID | (set in .env) |
+| `ANTHROPIC_API_KEY` | Anthropic API key for Claude (custom LLM + insights) | (required for AI responses) |
 | `CORS_ORIGINS` | Allowed CORS origins | http://localhost |
 | `DATABASE_PATH` | SQLite database path | ./database/food_supply.db |
 
@@ -73,6 +74,7 @@ For production, use proper certificates from Let's Encrypt or your provider.
 - `GET /api/products` - List products
 - `GET /api/inventory` - Inventory data
 - `GET /api/dashboard/stats` - Dashboard statistics
+- `POST /api/voice-llm/v1/chat/completions` - OpenAI-compatible endpoint for ElevenLabs Custom LLM mode
 - `WS /ws/voice` - WebSocket for voice AI
 
 ## Troubleshooting

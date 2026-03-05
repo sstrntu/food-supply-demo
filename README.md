@@ -138,8 +138,13 @@ To enable voice AI:
    ```
    ELEVENLABS_API_KEY=your-api-key
    ELEVENLABS_AGENT_ID=your-agent-id
+   ANTHROPIC_API_KEY=your-anthropic-api-key
    ```
 3. Restart backend
+
+For ElevenLabs Conversational AI Custom LLM mode, point the LLM endpoint to:
+
+`POST https://<your-domain>/api/voice-llm/v1/chat/completions`
 
 ## 📡 API Endpoints
 
@@ -152,6 +157,7 @@ To enable voice AI:
 | `GET /api/inventory/low-stock` | Items needing reorder |
 | `GET /api/products` | All products |
 | `GET /api/products/category/:cat` | Products by category |
+| `POST /api/voice-llm/v1/chat/completions` | OpenAI-compatible custom LLM endpoint for ElevenLabs |
 | `WS /ws/voice` | WebSocket for voice AI |
 
 ## 🐛 Troubleshooting
