@@ -1,5 +1,6 @@
 import { Router } from 'express';
 import { getDb } from '../db';
+import { resolveHotDate } from '../utils/hot-date';
 
 const router = Router();
 
@@ -141,10 +142,11 @@ router.get('/sales-summary', async (req, res) => {
 
     // Today's hot items matched count
     const today = new Date().toISOString().split('T')[0];
+    const hotDate = await resolveHotDate(db, today);
     const hotMatched = await db.get(`
       SELECT COUNT(*) as count FROM hot_items
       WHERE weee_date = ? AND match_type != 'none'
-    `, [today]);
+    `, [hotDate || today]);
 
     res.json({
       total_revenue_30d: Math.round(current * 100) / 100,
@@ -613,6 +615,7 @@ router.get('/hot-items-preview', async (req, res) => {
   try {
     const db = await getDb();
     const today = new Date().toISOString().split('T')[0];
+    const hotDate = await resolveHotDate(db, today);
 
     const items = await db.all(`
       SELECT
@@ -623,7 +626,7 @@ router.get('/hot-items-preview', async (req, res) => {
       WHERE h.weee_date = ?
       ORDER BY h.weee_rank ASC
       LIMIT 3
-    `, [today]);
+    `, [hotDate || today]);
 
     res.json(items);
   } catch (error) {

@@ -280,10 +280,30 @@ const Dashboard: FC = () => {
 
   const fetchDashboardData = async () => {
     try {
+      setLoading(true);
       const token = localStorage.getItem('token');
       const headers = { 'Authorization': `Bearer ${token}` };
 
-      const [statsRes, alertsRes, activityRes, salesRes, hotItemsRes, bisRes, weeeInsightRes, invoiceRes, aiRes] = await Promise.all([
+      // Load AI key insights first before the rest of the dashboard data.
+      let aiData: { insights?: { label: string; detail: string; type: string }[]; hotItemScripts?: { rank: number; whatToDo: string; crossSell: string; script: string }[] } = {
+        insights: [],
+        hotItemScripts: [],
+      };
+      const aiController = new AbortController();
+      const aiTimeout = setTimeout(() => aiController.abort(), 15000);
+      try {
+        const aiRes = await fetch(`${API_URL}/api/dashboard/ai-insights`, { headers, signal: aiController.signal });
+        aiData = aiRes.ok ? await aiRes.json() : aiData;
+      } catch {
+        aiData = { insights: [], hotItemScripts: [] };
+      } finally {
+        clearTimeout(aiTimeout);
+      }
+
+      setAiInsights(aiData.insights || []);
+      setHotItemScripts(aiData.hotItemScripts || []);
+
+      const [statsRes, alertsRes, activityRes, salesRes, hotItemsRes, bisRes, weeeInsightRes, invoiceRes] = await Promise.all([
         fetch(`${API_URL}/api/dashboard/stats`, { headers }),
         fetch(`${API_URL}/api/dashboard/alerts`, { headers }),
         fetch(`${API_URL}/api/dashboard/activity?limit=5`, { headers }),
@@ -292,10 +312,9 @@ const Dashboard: FC = () => {
         fetch(`${API_URL}/api/sales/back-in-stock-alerts`, { headers }),
         fetch(`${API_URL}/api/dashboard/weee-vs-channels`, { headers }),
         fetch(`${API_URL}/api/sales/invoices/overview?due_soon_days=7&limit=6`, { headers }),
-        fetch(`${API_URL}/api/dashboard/ai-insights`, { headers }),
       ]);
 
-      const [statsData, alertsData, activityData, salesData, hotItemsData, bisData, weeeInsightData, invoiceData, aiData] = await Promise.all([
+      const [statsData, alertsData, activityData, salesData, hotItemsData, bisData, weeeInsightData, invoiceData] = await Promise.all([
         statsRes.ok ? statsRes.json() : null,
         alertsRes.ok ? alertsRes.json() : [],
         activityRes.ok ? activityRes.json() : [],
@@ -304,7 +323,6 @@ const Dashboard: FC = () => {
         bisRes.ok ? bisRes.json() : { alerts: [] },
         weeeInsightRes.ok ? weeeInsightRes.json() : null,
         invoiceRes.ok ? invoiceRes.json() : null,
-        aiRes.ok ? aiRes.json() : { insights: [] },
       ]);
 
       setStats(statsData);
@@ -315,8 +333,6 @@ const Dashboard: FC = () => {
       setBackInStock(bisData.alerts || []);
       setWeeeChannelInsight(weeeInsightData);
       setInvoiceOverview(invoiceData);
-      setAiInsights(aiData.insights || []);
-      setHotItemScripts(aiData.hotItemScripts || []);
     } catch (err) {
       setError('Failed to load dashboard data');
     } finally {

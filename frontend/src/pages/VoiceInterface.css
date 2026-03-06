@@ -12,20 +12,31 @@
   background: #f8fafc;
 }
 
+.voice-loading {
+  min-height: calc(100vh - 56px);
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  gap: 12px;
+  color: #1e293b;
+}
+
+.voice-loading p {
+  margin: 0;
+  font-size: 15px;
+  font-weight: 600;
+}
+
 /* VOICE SECTION - ElevenLabs Widget Here */
 .voice-section {
   background: linear-gradient(135deg, #6366f1 0%, #8b5cf6 100%);
   padding: 16px 16px 32px;
   display: flex;
+  flex-direction: column;
+  gap: 12px;
   justify-content: center;
   align-items: center;
-}
-
-/* Force ElevenLabs widget to center and be big */
-.voice-section elevenlabs-convai {
-  display: flex !important;
-  justify-content: center !important;
-  align-items: center !important;
 }
 
 /* Voice Main Content */
@@ -281,8 +292,33 @@
 .widget-status.connecting {
   display: flex;
   align-items: center;
-  justify-content: center;
-  gap: 8px;
+  justify-content: flex-start;
+  gap: 12px;
+  width: min(560px, 100%);
+  background: rgba(15, 23, 42, 0.42);
+  border: 1px solid rgba(255, 255, 255, 0.35);
+  box-shadow: 0 8px 24px rgba(15, 23, 42, 0.35);
+  padding: 16px 18px;
+}
+
+.connecting-copy {
+  display: flex;
+  flex-direction: column;
+  align-items: flex-start;
+  text-align: left;
+  line-height: 1.3;
+}
+
+.connecting-title {
+  font-size: 18px;
+  font-weight: 800;
+  letter-spacing: 0.2px;
+}
+
+.connecting-subtitle {
+  font-size: 13px;
+  color: rgba(255, 255, 255, 0.9);
+  margin-top: 3px;
 }
 
 .widget-status.error {
@@ -299,12 +335,13 @@
 }
 
 .spinner {
-  width: 16px;
-  height: 16px;
+  width: 22px;
+  height: 22px;
   border: 2px solid rgba(255, 255, 255, 0.3);
   border-top-color: white;
   border-radius: 50%;
   animation: spin 1s linear infinite;
+  flex-shrink: 0;
 }
 
 @keyframes spin {
@@ -325,5 +362,11 @@
 
   .voice-stat-card {
     min-width: 130px;
+  }
+}
+
+@media (max-width: 640px) {
+  .connecting-title {
+    font-size: 16px;
   }
 }

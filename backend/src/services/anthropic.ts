@@ -62,7 +62,21 @@ export interface AiResponse {
 
 // In-memory cache (global, company-wide data)
 let cache: { data: AiResponse; timestamp: number } | null = null;
-const CACHE_TTL_MS = 5 * 60 * 1000; // 5 minutes
+let inflightRequest: Promise<AiResponse> | null = null;
+const CACHE_TTL_MS = parseInt(process.env.AI_INSIGHTS_CACHE_TTL_MS || `${5 * 60 * 1000}`, 10); // default: 5 minutes
+const AI_INSIGHTS_TIMEOUT_MS = parseInt(process.env.AI_INSIGHTS_TIMEOUT_MS || '12000', 10);
+
+function withTimeout<T>(promise: Promise<T>, timeoutMs: number): Promise<T> {
+  let timer: ReturnType<typeof setTimeout> | undefined;
+  return Promise.race([
+    promise.finally(() => {
+      if (timer) clearTimeout(timer);
+    }),
+    new Promise<T>((_, reject) => {
+      timer = setTimeout(() => reject(new Error('AI insights request timed out')), timeoutMs);
+    }),
+  ]);
+}
 
 function getCached(): AiResponse | null {
   if (cache && Date.now() - cache.timestamp < CACHE_TTL_MS) {
@@ -135,24 +149,48 @@ export async function generateInsights(data: DashboardDataBundle): Promise<AiRes
     return empty;
   }
 
-  const client = new Anthropic({ apiKey: ANTHROPIC_API_KEY });
+  if (inflightRequest) {
+    console.log('AI insights: awaiting in-flight request');
+    return inflightRequest;
+  }
 
-  const message = await client.messages.create({
-    model: 'claude-haiku-4-5-20251001',
-    max_tokens: 2048,
-    messages: [{ role: 'user', content: buildPrompt(data) }],
-  });
+  const requestPromise = (async (): Promise<AiResponse> => {
+    const client = new Anthropic({ apiKey: ANTHROPIC_API_KEY });
 
-  let text = message.content
-    .filter(block => block.type === 'text')
-    .map(block => block.text)
-    .join('');
+    const message = await withTimeout(
+      client.messages.create({
+        model: 'claude-haiku-4-5-20251001',
+        max_tokens: 2048,
+        messages: [{ role: 'user', content: buildPrompt(data) }],
+      }),
+      AI_INSIGHTS_TIMEOUT_MS
+    );
 
-  // Strip markdown fences if present
-  text = text.replace(/```json?\n?/g, '').replace(/```/g, '').trim();
+    let text = message.content
+      .filter(block => block.type === 'text')
+      .map(block => block.text)
+      .join('');
 
-  const parsed: AiResponse = JSON.parse(text);
-  setCache(parsed);
-  console.log(`AI insights: ${parsed.insights.length} insights, ${parsed.hotItemScripts.length} hot item scripts`);
-  return parsed;
+    // Strip markdown fences if present
+    text = text.replace(/```json?\n?/g, '').replace(/```/g, '').trim();
+
+    const parsed: AiResponse = JSON.parse(text);
+    setCache(parsed);
+    console.log(`AI insights: ${parsed.insights.length} insights, ${parsed.hotItemScripts.length} hot item scripts`);
+    return parsed;
+  })();
+
+  inflightRequest = requestPromise;
+
+  try {
+    return await requestPromise;
+  } catch (error) {
+    if (cache?.data) {
+      console.warn('AI insights: request failed, serving stale cache');
+      return cache.data;
+    }
+    throw error;
+  } finally {
+    if (inflightRequest === requestPromise) inflightRequest = null;
+  }
 }

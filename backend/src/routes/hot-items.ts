@@ -1,5 +1,6 @@
 import { Router } from 'express';
 import { getDb } from '../db';
+import { resolveHotDate } from '../utils/hot-date';
 
 const router = Router();
 
@@ -8,6 +9,16 @@ router.get('/today', async (req, res) => {
   try {
     const db = await getDb();
     const today = new Date().toISOString().split('T')[0];
+    const hotDate = await resolveHotDate(db, today);
+
+    if (!hotDate) {
+      res.json({
+        date: today,
+        hot_items: [],
+        summary_pitch: 'Focus on trending Asian staples today.',
+      });
+      return;
+    }
 
     const hotItems = await db.all(`
       SELECT
@@ -28,35 +39,35 @@ router.get('/today', async (req, res) => {
         p.weee_review_count,
         p.weee_weekly_sold,
         i.quantity_on_hand,
-        i.reorder_point
+        i.reorder_point,
+        pp.pairing_reason,
+        p2.name as paired_product_name,
+        p2.sku as paired_sku,
+        p2.unit_price as paired_price
       FROM hot_items h
       LEFT JOIN products p ON h.matched_product_id = p.id
       LEFT JOIN inventory i ON p.id = i.product_id
+      LEFT JOIN product_pairings pp ON pp.id = (
+        SELECT pp2.id
+        FROM product_pairings pp2
+        WHERE pp2.product_id = p.id
+        ORDER BY pp2.id ASC
+        LIMIT 1
+      )
+      LEFT JOIN products p2 ON pp.paired_product_id = p2.id
       WHERE h.weee_date = ?
       ORDER BY h.weee_rank ASC
-    `, [today]);
+    `, [hotDate]);
 
-    // For each hot item with a match, get cross-sell pairings
+    // Build response with pairing info preloaded in the query (avoids N+1 queries).
     const result = [];
     for (const item of hotItems) {
-      let crossSell = null;
-      if (item.product_id) {
-        const pairing = await db.get(`
-          SELECT pp.pairing_reason, p2.name as paired_product_name, p2.sku as paired_sku, p2.unit_price as paired_price
-          FROM product_pairings pp
-          JOIN products p2 ON pp.paired_product_id = p2.id
-          WHERE pp.product_id = ?
-          LIMIT 1
-        `, [item.product_id]);
-        if (pairing) {
-          crossSell = {
-            product_name: pairing.paired_product_name,
-            sku: pairing.paired_sku,
-            price: pairing.paired_price,
-            reason: pairing.pairing_reason
-          };
-        }
-      }
+      const crossSell = item.paired_product_name ? {
+        product_name: item.paired_product_name,
+        sku: item.paired_sku,
+        price: item.paired_price,
+        reason: item.pairing_reason
+      } : null;
 
       result.push({
         rank: item.weee_rank,
@@ -86,7 +97,7 @@ router.get('/today', async (req, res) => {
     const summaryPitch = pitches[0] || 'Focus on trending Asian staples today.';
 
     res.json({
-      date: today,
+      date: hotDate,
       hot_items: result,
       summary_pitch: summaryPitch,
     });

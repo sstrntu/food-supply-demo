@@ -1,6 +1,7 @@
 import { Router } from 'express';
 import { getDb } from '../db';
 import { generateInsights, DashboardDataBundle, HotItemInput } from '../services/anthropic';
+import { resolveHotDate } from '../utils/hot-date';
 
 const router = Router();
 
@@ -8,6 +9,8 @@ router.get('/', async (_req, res) => {
   try {
     const db = await getDb();
     const today = new Date().toISOString().split('T')[0];
+    const hotDate = await resolveHotDate(db, today);
+    const effectiveHotDate = hotDate || today;
 
     // Run all queries in parallel
     const [
@@ -64,10 +67,10 @@ router.get('/', async (_req, res) => {
           COUNT(*) as total,
           COUNT(CASE WHEN match_type != 'none' THEN 1 END) as matched
         FROM hot_items WHERE weee_date = ?
-      `, [today]),
+      `, [effectiveHotDate]),
 
       // Summary pitch
-      db.get(`SELECT talking_point FROM hot_items WHERE weee_date = ? AND weee_rank = 1`, [today]),
+      db.get(`SELECT talking_point FROM hot_items WHERE weee_date = ? AND weee_rank = 1`, [effectiveHotDate]),
 
       // Channel stats (30d)
       db.get(`
@@ -99,7 +102,7 @@ router.get('/', async (_req, res) => {
         WHERE h.weee_date = ? AND h.match_type != 'none'
         ORDER BY h.weee_rank ASC
         LIMIT 3
-      `, [today]),
+      `, [effectiveHotDate]),
     ]);
 
     // Calculate revenue change
@@ -273,7 +276,7 @@ router.get('/', async (_req, res) => {
     res.json({ insights: result.insights, hotItemScripts: result.hotItemScripts });
   } catch (error) {
     console.error('AI insights error:', error);
-    res.json({ insights: [], hotItemScripts: [], error: 'AI insights unavailable' });
+    res.status(503).json({ insights: [], hotItemScripts: [], error: 'AI insights unavailable' });
   }
 });
 

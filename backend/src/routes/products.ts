@@ -29,8 +29,8 @@ router.get('/', async (req, res) => {
     }
     
     if (search) {
-      params.push(`%${search}%`, `%${search}%`);
-      query += ` AND (p.name LIKE ? OR p.description LIKE ?)`;
+      params.push(`%${search}%`, `%${search}%`, `%${search}%`);
+      query += ` AND (p.name LIKE ? OR p.description LIKE ? OR p.sku LIKE ?)`;
     }
     
     query += ` ORDER BY p.category, p.name`;

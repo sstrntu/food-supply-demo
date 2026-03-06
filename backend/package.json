@@ -7,8 +7,9 @@
     "build": "tsc",
     "start": "node dist/index.js",
     "dev": "ts-node-dev --respawn --transpile-only src/index.ts",
-    "db:init": "ts-node src/db.ts",
-    "seed": "ts-node src/seed.ts",
+    "db:init": "ts-node src/scripts/db-ensure.ts",
+    "seed": "ts-node src/scripts/db-seed.ts",
+    "db:reset-seed": "ts-node src/scripts/db-reset-seed.ts",
     "typecheck": "tsc --noEmit"
   },
   "dependencies": {

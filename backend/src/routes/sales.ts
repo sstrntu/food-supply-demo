@@ -224,6 +224,73 @@ router.get('/back-in-stock-alerts', async (req, res) => {
   }
 });
 
+// Invoice detail lookup (by invoice number or ID; falls back to highest-priority open invoice)
+router.get('/invoices/detail', async (req, res) => {
+  try {
+    const db = await getDb();
+    const invoiceNumber = (req.query.invoice_number as string || '').trim();
+    const invoiceId = parseInt(req.query.invoice_id as string, 10);
+
+    const baseSelect = `
+      SELECT
+        i.id,
+        i.invoice_number,
+        i.issue_date,
+        i.due_date,
+        i.amount,
+        i.balance_due,
+        i.status,
+        i.paid_date,
+        i.assigned_to,
+        i.follow_up_note,
+        c.id as customer_id,
+        c.name as customer_name,
+        c.territory,
+        c.account_manager,
+        c.phone,
+        CAST(julianday('now') - julianday(i.due_date) AS INTEGER) as days_overdue,
+        CAST(julianday(i.due_date) - julianday('now') AS INTEGER) as days_until_due
+      FROM invoices i
+      JOIN customers c ON i.customer_id = c.id
+    `;
+
+    let invoice: any = null;
+
+    if (Number.isFinite(invoiceId) && invoiceId > 0) {
+      invoice = await db.get(
+        `${baseSelect}
+         WHERE i.id = ?
+         LIMIT 1`,
+        [invoiceId]
+      );
+    } else if (invoiceNumber) {
+      invoice = await db.get(
+        `${baseSelect}
+         WHERE LOWER(i.invoice_number) LIKE LOWER(?)
+         ORDER BY CASE WHEN LOWER(i.invoice_number) = LOWER(?) THEN 0 ELSE 1 END, i.due_date ASC
+         LIMIT 1`,
+        [`%${invoiceNumber}%`, invoiceNumber]
+      );
+    } else {
+      invoice = await db.get(
+        `${baseSelect}
+         WHERE i.balance_due > 0
+         ORDER BY i.due_date ASC, i.balance_due DESC
+         LIMIT 1`
+      );
+    }
+
+    if (!invoice) {
+      return res.status(404).json({ error: 'Invoice not found' });
+    }
+
+    res.json({ invoice });
+  } catch (error) {
+    console.error('Error fetching invoice detail:', error);
+    res.status(500).json({ error: 'Failed to fetch invoice detail' });
+  }
+});
+
 // Invoice summary and follow-up queue
 router.get('/invoices/overview', async (req, res) => {
   try {

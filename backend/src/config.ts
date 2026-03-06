@@ -13,6 +13,7 @@ export const isProduction = NODE_ENV === 'production';
 
 // Database
 export const DATABASE_PATH = process.env.DATABASE_PATH || './database/food_supply.db';
+export const RESET_DB_ON_START = ['1', 'true', 'yes'].includes((process.env.RESET_DB_ON_START || '').toLowerCase());
 
 // JWT
 export const JWT_SECRET = process.env.JWT_SECRET || 'development-secret-key';

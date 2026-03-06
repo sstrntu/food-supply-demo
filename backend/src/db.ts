@@ -35,25 +35,32 @@ export async function closeDb(): Promise<void> {
   }
 }
 
-export async function initDb(): Promise<Database<sqlite3.Database, sqlite3.Statement>> {
+export async function initDb(options: { reset?: boolean } = {}): Promise<Database<sqlite3.Database, sqlite3.Statement>> {
   const database = await getDb();
+  const shouldReset = options.reset === true;
+
+  if (shouldReset) {
+    await database.exec(`
+      -- Drop all tables in dependency order
+      DROP TABLE IF EXISTS order_items;
+      DROP TABLE IF EXISTS orders;
+      DROP TABLE IF EXISTS weee_product_weekly_metrics;
+      DROP TABLE IF EXISTS weee_top_seller_weekly;
+      DROP TABLE IF EXISTS weee_reviews;
+      DROP TABLE IF EXISTS product_pairings;
+      DROP TABLE IF EXISTS hot_items;
+      DROP TABLE IF EXISTS sales_history;
+      DROP TABLE IF EXISTS invoices;
+      DROP TABLE IF EXISTS inventory;
+      DROP TABLE IF EXISTS customers;
+      DROP TABLE IF EXISTS products;
+      DROP TABLE IF EXISTS warehouses;
+    `);
+  }
 
   await database.exec(`
-    -- Drop all tables in dependency order
-    DROP TABLE IF EXISTS weee_product_weekly_metrics;
-    DROP TABLE IF EXISTS weee_top_seller_weekly;
-    DROP TABLE IF EXISTS weee_reviews;
-    DROP TABLE IF EXISTS product_pairings;
-    DROP TABLE IF EXISTS hot_items;
-    DROP TABLE IF EXISTS sales_history;
-    DROP TABLE IF EXISTS invoices;
-    DROP TABLE IF EXISTS inventory;
-    DROP TABLE IF EXISTS customers;
-    DROP TABLE IF EXISTS products;
-    DROP TABLE IF EXISTS warehouses;
-
     -- Warehouses
-    CREATE TABLE warehouses (
+    CREATE TABLE IF NOT EXISTS warehouses (
       id INTEGER PRIMARY KEY AUTOINCREMENT,
       name TEXT NOT NULL,
       location TEXT NOT NULL,
@@ -61,7 +68,7 @@ export async function initDb(): Promise<Database<sqlite3.Database, sqlite3.State
     );
 
     -- Products (with Weee marketplace fields)
-    CREATE TABLE products (
+    CREATE TABLE IF NOT EXISTS products (
       id INTEGER PRIMARY KEY AUTOINCREMENT,
       name TEXT NOT NULL,
       category TEXT NOT NULL,
@@ -80,7 +87,7 @@ export async function initDb(): Promise<Database<sqlite3.Database, sqlite3.State
     );
 
     -- Inventory
-    CREATE TABLE inventory (
+    CREATE TABLE IF NOT EXISTS inventory (
       id INTEGER PRIMARY KEY AUTOINCREMENT,
       product_id INTEGER NOT NULL,
       warehouse_id INTEGER NOT NULL,
@@ -94,7 +101,7 @@ export async function initDb(): Promise<Database<sqlite3.Database, sqlite3.State
     );
 
     -- Customers (US territories)
-    CREATE TABLE customers (
+    CREATE TABLE IF NOT EXISTS customers (
       id INTEGER PRIMARY KEY AUTOINCREMENT,
       name TEXT NOT NULL,
       store_type TEXT NOT NULL,
@@ -107,7 +114,7 @@ export async function initDb(): Promise<Database<sqlite3.Database, sqlite3.State
     );
 
     -- Invoices / accounts receivable
-    CREATE TABLE invoices (
+    CREATE TABLE IF NOT EXISTS invoices (
       id INTEGER PRIMARY KEY AUTOINCREMENT,
       invoice_number TEXT UNIQUE NOT NULL,
       customer_id INTEGER NOT NULL,
@@ -123,8 +130,32 @@ export async function initDb(): Promise<Database<sqlite3.Database, sqlite3.State
       FOREIGN KEY (customer_id) REFERENCES customers(id) ON DELETE CASCADE
     );
 
+    -- Orders
+    CREATE TABLE IF NOT EXISTS orders (
+      id INTEGER PRIMARY KEY AUTOINCREMENT,
+      customer_id INTEGER NOT NULL,
+      status TEXT NOT NULL DEFAULT 'pending',
+      total_amount REAL NOT NULL DEFAULT 0,
+      created_at DATETIME DEFAULT CURRENT_TIMESTAMP,
+      shipped_at TEXT,
+      delivered_at TEXT,
+      FOREIGN KEY (customer_id) REFERENCES customers(id) ON DELETE CASCADE
+    );
+
+    -- Order items
+    CREATE TABLE IF NOT EXISTS order_items (
+      id INTEGER PRIMARY KEY AUTOINCREMENT,
+      order_id INTEGER NOT NULL,
+      product_id INTEGER NOT NULL,
+      quantity INTEGER NOT NULL,
+      unit_price REAL NOT NULL,
+      created_at DATETIME DEFAULT CURRENT_TIMESTAMP,
+      FOREIGN KEY (order_id) REFERENCES orders(id) ON DELETE CASCADE,
+      FOREIGN KEY (product_id) REFERENCES products(id) ON DELETE CASCADE
+    );
+
     -- Sales history (daily per-customer per-product)
-    CREATE TABLE sales_history (
+    CREATE TABLE IF NOT EXISTS sales_history (
       id INTEGER PRIMARY KEY AUTOINCREMENT,
       customer_id INTEGER NOT NULL,
       product_id INTEGER NOT NULL,
@@ -137,7 +168,7 @@ export async function initDb(): Promise<Database<sqlite3.Database, sqlite3.State
     );
 
     -- Hot items (daily Weee trending items)
-    CREATE TABLE hot_items (
+    CREATE TABLE IF NOT EXISTS hot_items (
       id INTEGER PRIMARY KEY AUTOINCREMENT,
       weee_date TEXT NOT NULL,
       weee_product_name TEXT NOT NULL,
@@ -153,7 +184,7 @@ export async function initDb(): Promise<Database<sqlite3.Database, sqlite3.State
     );
 
     -- Weekly Weee/Sayweee top seller snapshots (observed rankings only)
-    CREATE TABLE weee_top_seller_weekly (
+    CREATE TABLE IF NOT EXISTS weee_top_seller_weekly (
       id INTEGER PRIMARY KEY AUTOINCREMENT,
       week_start TEXT NOT NULL,
       weee_rank INTEGER NOT NULL,
@@ -165,7 +196,7 @@ export async function initDb(): Promise<Database<sqlite3.Database, sqlite3.State
     );
 
     -- Weekly performance for our own products listed on Weee
-    CREATE TABLE weee_product_weekly_metrics (
+    CREATE TABLE IF NOT EXISTS weee_product_weekly_metrics (
       id INTEGER PRIMARY KEY AUTOINCREMENT,
       week_start TEXT NOT NULL,
       product_id INTEGER NOT NULL,
@@ -181,7 +212,7 @@ export async function initDb(): Promise<Database<sqlite3.Database, sqlite3.State
     );
 
     -- Product pairings (cross-sell)
-    CREATE TABLE product_pairings (
+    CREATE TABLE IF NOT EXISTS product_pairings (
       id INTEGER PRIMARY KEY AUTOINCREMENT,
       product_id INTEGER NOT NULL,
       paired_product_id INTEGER NOT NULL,
@@ -192,7 +223,7 @@ export async function initDb(): Promise<Database<sqlite3.Database, sqlite3.State
     );
 
     -- Weee customer reviews
-    CREATE TABLE weee_reviews (
+    CREATE TABLE IF NOT EXISTS weee_reviews (
       id INTEGER PRIMARY KEY AUTOINCREMENT,
       product_id INTEGER NOT NULL,
       reviewer_name TEXT NOT NULL,
@@ -213,6 +244,11 @@ export async function initDb(): Promise<Database<sqlite3.Database, sqlite3.State
     CREATE INDEX IF NOT EXISTS idx_invoices_customer ON invoices(customer_id);
     CREATE INDEX IF NOT EXISTS idx_invoices_due_date ON invoices(due_date);
     CREATE INDEX IF NOT EXISTS idx_invoices_status ON invoices(status);
+    CREATE INDEX IF NOT EXISTS idx_orders_customer ON orders(customer_id);
+    CREATE INDEX IF NOT EXISTS idx_orders_status ON orders(status);
+    CREATE INDEX IF NOT EXISTS idx_orders_created ON orders(created_at);
+    CREATE INDEX IF NOT EXISTS idx_order_items_order ON order_items(order_id);
+    CREATE INDEX IF NOT EXISTS idx_order_items_product ON order_items(product_id);
     CREATE INDEX IF NOT EXISTS idx_sales_history_customer ON sales_history(customer_id);
     CREATE INDEX IF NOT EXISTS idx_sales_history_product ON sales_history(product_id);
     CREATE INDEX IF NOT EXISTS idx_sales_history_date ON sales_history(sale_date);
@@ -227,10 +263,177 @@ export async function initDb(): Promise<Database<sqlite3.Database, sqlite3.State
   return database;
 }
 
+function offsetDateTimeString(daysOffset: number, hour = 10): string {
+  const d = new Date();
+  d.setDate(d.getDate() + daysOffset);
+  d.setHours(hour, 0, 0, 0);
+  return d.toISOString().replace('T', ' ').slice(0, 19);
+}
+
+async function ensureOrderSeedData(database: Database): Promise<void> {
+  const ordersTable = await database.get(`
+    SELECT name FROM sqlite_master WHERE type = 'table' AND name = 'orders'
+  `);
+  if (!ordersTable) return;
+
+  const existingOrders = await database.get('SELECT COUNT(*) as count FROM orders') as any;
+  if ((existingOrders?.count || 0) > 0) return;
+
+  const productRows = await database.all(`
+    SELECT id, sku, unit_price FROM products
+  `) as any[];
+  if (!productRows.length) return;
+
+  const skuToProduct = new Map<string, { id: number; unit_price: number }>();
+  for (const row of productRows) {
+    if (typeof row?.sku === 'string') {
+      skuToProduct.set(row.sku, { id: row.id, unit_price: row.unit_price });
+    }
+  }
+
+  type OrderSeedItem = { sku: string; quantity: number };
+  type OrderSeed = {
+    customerId: number;
+    status: 'pending' | 'processing' | 'shipped' | 'delivered' | 'cancelled';
+    createdOffset: number;
+    shippedOffset?: number;
+    deliveredOffset?: number;
+    items: OrderSeedItem[];
+  };
+
+  const orderSeeds: OrderSeed[] = [
+    {
+      customerId: 1,
+      status: 'pending',
+      createdOffset: -1,
+      items: [
+        { sku: 'SAUCE-001', quantity: 24 },
+        { sku: 'SNACK-002', quantity: 36 },
+        { sku: 'BEV-001', quantity: 20 },
+      ],
+    },
+    {
+      customerId: 4,
+      status: 'processing',
+      createdOffset: -3,
+      items: [
+        { sku: 'RICE-001', quantity: 30 },
+        { sku: 'NOODLE-005', quantity: 18 },
+        { sku: 'PANTRY-003', quantity: 22 },
+      ],
+    },
+    {
+      customerId: 7,
+      status: 'shipped',
+      createdOffset: -7,
+      shippedOffset: -5,
+      items: [
+        { sku: 'SPICE-001', quantity: 25 },
+        { sku: 'SAUCE-005', quantity: 15 },
+      ],
+    },
+    {
+      customerId: 9,
+      status: 'delivered',
+      createdOffset: -14,
+      shippedOffset: -12,
+      deliveredOffset: -9,
+      items: [
+        { sku: 'NOODLE-003', quantity: 40 },
+        { sku: 'SAUCE-003', quantity: 18 },
+        { sku: 'FROZEN-003', quantity: 12 },
+      ],
+    },
+    {
+      customerId: 2,
+      status: 'delivered',
+      createdOffset: -21,
+      shippedOffset: -19,
+      deliveredOffset: -16,
+      items: [
+        { sku: 'RICE-003', quantity: 20 },
+        { sku: 'SAUCE-001', quantity: 18 },
+      ],
+    },
+    {
+      customerId: 5,
+      status: 'shipped',
+      createdOffset: -10,
+      shippedOffset: -8,
+      items: [
+        { sku: 'FROZEN-005', quantity: 10 },
+        { sku: 'BEV-005', quantity: 8 },
+        { sku: 'SNACK-005', quantity: 16 },
+      ],
+    },
+    {
+      customerId: 10,
+      status: 'cancelled',
+      createdOffset: -4,
+      items: [
+        { sku: 'SNACK-001', quantity: 12 },
+        { sku: 'PANTRY-001', quantity: 10 },
+      ],
+    },
+    {
+      customerId: 3,
+      status: 'processing',
+      createdOffset: -2,
+      items: [
+        { sku: 'NOODLE-001', quantity: 30 },
+        { sku: 'SAUCE-005', quantity: 12 },
+        { sku: 'PANTRY-006', quantity: 8 },
+      ],
+    },
+  ];
+
+  for (let index = 0; index < orderSeeds.length; index++) {
+    const order = orderSeeds[index];
+    const validItems: { sku: string; quantity: number; productId: number; unitPrice: number }[] = [];
+    for (const item of order.items) {
+      const product = skuToProduct.get(item.sku);
+      if (!product) continue;
+      validItems.push({ ...item, productId: product.id, unitPrice: product.unit_price });
+    }
+
+    if (validItems.length === 0) continue;
+
+    const totalAmount = Math.round(
+      validItems.reduce((sum, item) => sum + (item.quantity * item.unitPrice), 0) * 100
+    ) / 100;
+
+    const createdAt = offsetDateTimeString(order.createdOffset, 9 + (index % 6));
+    const shippedAt = typeof order.shippedOffset === 'number'
+      ? offsetDateTimeString(order.shippedOffset, 14)
+      : null;
+    const deliveredAt = typeof order.deliveredOffset === 'number'
+      ? offsetDateTimeString(order.deliveredOffset, 16)
+      : null;
+
+    const orderResult = await database.run(
+      `INSERT INTO orders (customer_id, status, total_amount, created_at, shipped_at, delivered_at)
+       VALUES (?, ?, ?, ?, ?, ?)`,
+      [order.customerId, order.status, totalAmount, createdAt, shippedAt, deliveredAt]
+    );
+
+    const orderId = orderResult.lastID!;
+    for (const item of validItems) {
+      await database.run(
+        `INSERT INTO order_items (order_id, product_id, quantity, unit_price, created_at)
+         VALUES (?, ?, ?, ?, ?)`,
+        [orderId, item.productId, item.quantity, item.unitPrice, createdAt]
+      );
+    }
+  }
+}
+
 export async function seedData(database: Database): Promise<void> {
   // Skip seeding if data already exists
   const existing = await database.get('SELECT COUNT(*) as count FROM warehouses');
-  if (existing && existing.count > 0) return;
+  if (existing && existing.count > 0) {
+    await ensureOrderSeedData(database);
+    return;
+  }
 
   // --- WAREHOUSES (US locations) ---
   await database.run(`INSERT INTO warehouses (name, location) VALUES (?, ?)`, ['Main Warehouse', 'Chicago, IL']);
@@ -908,4 +1111,7 @@ export async function seedData(database: Database): Promise<void> {
       [productId, r.reviewer, r.rating, r.comment, reviewDateStr, 1]
     );
   }
+
+  // --- ORDERS + ORDER ITEMS (mock pipeline data for voice/order status) ---
+  await ensureOrderSeedData(database);
 }
